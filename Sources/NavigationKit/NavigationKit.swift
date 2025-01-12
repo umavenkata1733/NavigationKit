@@ -309,3 +309,27 @@ public struct NavigationContainer<Route: NavigationRoute, Content: View>: View {
         .environmentObject(navigationState)
     }
 }
+
+// MARK: - NavigationKit/Sources/NavigationKit/AppRoute.swift
+
+
+public enum AppRoute: NavigationRoute {
+    case moduleA
+    case moduleB
+    case settings
+    
+    public var id: String {
+        switch self {
+        case .moduleA: return "moduleA"
+        case .moduleB: return "moduleB"
+        case .settings: return "settings"
+        }
+    }
+    
+    public var navigationType: NavigationType {
+        switch self {
+        case .moduleA, .moduleB: return .push
+        case .settings: return .sheet
+        }
+    }
+}
