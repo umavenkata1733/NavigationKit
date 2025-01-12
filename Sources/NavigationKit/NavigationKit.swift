@@ -94,88 +94,48 @@ public struct ActionSheetButton {
 }
 
 // MARK: - Navigation State
+
 public final class NavigationState<Route: NavigationRoute>: ObservableObject {
-    // Published properties for UI updates
     @Published public var path = NavigationPath()
     @Published public var presentedSheet: Route?
     @Published public var presentedFullScreen: Route?
     @Published public var alertConfig: AlertConfig?
     @Published public var actionSheetConfig: ActionSheetConfig?
-    @Published public var selectedTab: Int = 0
     
     // Private properties
     private var navigationStack: [Route] = []
-    private var tabStacks: [Int: [Route]] = [:]
     
-    public init() {
-        setupTabStacks()
-    }
-    
-    private func setupTabStacks() {
-        for tab in 0...5 {
-            tabStacks[tab] = []
-        }
-    }
+    public init() {}
     
     // MARK: - Navigation Methods
-    
     public func navigate(to route: Route) {
         switch route.navigationType {
         case .push:
-            handlePushNavigation(route)
+            navigationStack.append(route)
+            path.append(route)
         case .sheet:
             presentedSheet = route
         case .fullScreen:
             presentedFullScreen = route
-        case .tabItem:
-            handleTabNavigation(route)
         default:
+            // Handle other navigation types if needed
             break
         }
     }
     
-    private func handlePushNavigation(_ route: Route) {
-        navigationStack.append(route)
-        path.append(route)
-        
-        // Update tab stack
-        if var currentTabStack = tabStacks[selectedTab] {
-            currentTabStack.append(route)
-            tabStacks[selectedTab] = currentTabStack
-        }
-    }
-    
-    private func handleTabNavigation(_ route: Route) {
-        if let tabIndex = getTabIndex(for: route) {
-            switchTab(to: tabIndex)
-        }
-    }
-    
-    // MARK: - Tab Management
-    
-    public func switchTab(to index: Int) {
-        selectedTab = index
-        path = NavigationPath()
-        
-        // Restore tab's navigation stack
-        if let stack = tabStacks[index] {
-            stack.forEach { path.append($0) }
-        }
-    }
-    
-    private func getTabIndex(for route: Route) -> Int? {
-        // Implement your tab mapping logic here
-        return nil
-    }
-    
     // MARK: - Dismissal Methods
-    
     public func dismiss() {
         if !navigationStack.isEmpty {
+            // Safe removal from navigation stack
             navigationStack.removeLast()
-            path.removeLast()
-        } else {
+            
+            // Only remove from path if it's not empty
+            if path.count > 0 {
+                path.removeLast()
+            }
+        } else if presentedSheet != nil {
             presentedSheet = nil
+        } else if presentedFullScreen != nil {
             presentedFullScreen = nil
         }
     }
@@ -183,11 +143,9 @@ public final class NavigationState<Route: NavigationRoute>: ObservableObject {
     public func popToRoot() {
         navigationStack.removeAll()
         path = NavigationPath()
-        tabStacks[selectedTab]?.removeAll()
     }
     
-    // MARK: - Alert and Action Sheet Methods
-    
+    // MARK: - Alert Methods
     public func showAlert(
         title: String,
         message: String,
@@ -202,6 +160,11 @@ public final class NavigationState<Route: NavigationRoute>: ObservableObject {
         )
     }
     
+    public func dismissAlert() {
+        alertConfig = nil
+    }
+    
+    // MARK: - Action Sheet Methods
     public func showActionSheet(
         title: String,
         message: String? = nil,
@@ -212,10 +175,6 @@ public final class NavigationState<Route: NavigationRoute>: ObservableObject {
             message: message,
             buttons: buttons
         )
-    }
-    
-    public func dismissAlert() {
-        alertConfig = nil
     }
     
     public func dismissActionSheet() {
