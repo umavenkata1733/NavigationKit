@@ -272,22 +272,49 @@ public struct NavigationContainer<Route: NavigationRoute, Content: View>: View {
 
 
 public enum AppRoute: NavigationRoute {
+    // Main routes
     case moduleA
     case moduleB
     case settings
+    
+    // Module A specific routes
+    case moduleADetail(id: String)
+    case moduleASettings
+    case moduleAProfile
+    
+    // Module B specific routes
+    case moduleBDetail(id: String)
+    case moduleBSettings
+    case moduleBProfile
+    
+    // Cross-module routes
+    case crossModuleFeature(source: String, data: String)
     
     public var id: String {
         switch self {
         case .moduleA: return "moduleA"
         case .moduleB: return "moduleB"
         case .settings: return "settings"
+        case .moduleADetail(let id): return "moduleADetail-\(id)"
+        case .moduleASettings: return "moduleASettings"
+        case .moduleAProfile: return "moduleAProfile"
+        case .moduleBDetail(let id): return "moduleBDetail-\(id)"
+        case .moduleBSettings: return "moduleBSettings"
+        case .moduleBProfile: return "moduleBProfile"
+        case .crossModuleFeature(let source, _): return "crossModule-\(source)"
         }
     }
     
     public var navigationType: NavigationType {
         switch self {
-        case .moduleA, .moduleB: return .push
-        case .settings: return .sheet
+        case .moduleA, .moduleB,
+             .moduleADetail, .moduleBDetail,
+             .crossModuleFeature:
+            return .push
+        case .settings, .moduleASettings, .moduleBSettings:
+            return .sheet
+        case .moduleAProfile, .moduleBProfile:
+            return .fullScreen
         }
     }
 }
