@@ -270,7 +270,6 @@ public struct NavigationContainer<Route: NavigationRoute, Content: View>: View {
 
 // MARK: - NavigationKit/Sources/NavigationKit/AppRoute.swift
 
-
 public enum AppRoute: NavigationRoute {
     // Main routes
     case moduleA
