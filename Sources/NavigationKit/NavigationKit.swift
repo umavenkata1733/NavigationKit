@@ -223,7 +223,8 @@ public final class NavigationState<Route: NavigationRoute>: ObservableObject {
     }
 }
 
-// MARK: - Navigation Container View
+// MARK: - NavigationKit/Sources/NavigationKit/NavigationContainer.swift
+
 public struct NavigationContainer<Route: NavigationRoute, Content: View>: View {
     @StateObject var navigationState: NavigationState<Route>
     let content: Content
@@ -240,73 +241,71 @@ public struct NavigationContainer<Route: NavigationRoute, Content: View>: View {
     }
     
     public var body: some View {
-        TabView(selection: $navigationState.selectedTab) {
-            NavigationStack(path: $navigationState.path) {
-                content
-                    .navigationDestination(for: Route.self) { route in
+        NavigationStack(path: $navigationState.path) {
+            content
+                .navigationDestination(for: Route.self) { route in
+                    viewBuilder(route)
+                }
+                .sheet(item: $navigationState.presentedSheet) { route in
+                    NavigationStack {
                         viewBuilder(route)
                     }
-                    .sheet(item: $navigationState.presentedSheet) { route in
-                        NavigationStack {
-                            viewBuilder(route)
+                }
+                .fullScreenCover(item: $navigationState.presentedFullScreen) { route in
+                    NavigationStack {
+                        viewBuilder(route)
+                    }
+                }
+                .alert(
+                    navigationState.alertConfig?.title ?? "",
+                    isPresented: Binding(
+                        get: { navigationState.alertConfig != nil },
+                        set: { if !$0 { navigationState.alertConfig = nil } }
+                    ),
+                    presenting: navigationState.alertConfig
+                ) { config in
+                    if let primary = config.primaryButton {
+                        Button(role: primary.role) {
+                            primary.action()
+                            navigationState.dismissAlert()
+                        } label: {
+                            Text(primary.title)
                         }
                     }
-                    .fullScreenCover(item: $navigationState.presentedFullScreen) { route in
-                        NavigationStack {
-                            viewBuilder(route)
+                    if let secondary = config.secondaryButton {
+                        Button(role: secondary.role) {
+                            secondary.action()
+                            navigationState.dismissAlert()
+                        } label: {
+                            Text(secondary.title)
                         }
                     }
-                    .alert(
-                        navigationState.alertConfig?.title ?? "",
-                        isPresented: Binding(
-                            get: { navigationState.alertConfig != nil },
-                            set: { if !$0 { navigationState.alertConfig = nil } }
-                        ),
-                        presenting: navigationState.alertConfig
-                    ) { config in
-                        if let primary = config.primaryButton {
-                            Button(role: primary.role) {
-                                primary.action()
-                                navigationState.dismissAlert()
-                            } label: {
-                                Text(primary.title)
-                            }
-                        }
-                        if let secondary = config.secondaryButton {
-                            Button(role: secondary.role) {
-                                secondary.action()
-                                navigationState.dismissAlert()
-                            } label: {
-                                Text(secondary.title)
-                            }
-                        }
-                    } message: { config in
-                        Text(config.message)
-                    }
-                    .confirmationDialog(
-                        navigationState.actionSheetConfig?.title ?? "",
-                        isPresented: Binding(
-                            get: { navigationState.actionSheetConfig != nil },
-                            set: { if !$0 { navigationState.actionSheetConfig = nil } }
-                        ),
-                        presenting: navigationState.actionSheetConfig
-                    ) { config in
-                        ForEach(config.buttons, id: \.title) { button in
-                            Button(role: button.role) {
-                                button.action()
-                                navigationState.dismissActionSheet()
-                            } label: {
-                                Text(button.title)
-                            }
-                        }
-                    } message: { config in
-                        if let message = config.message {
-                            Text(message)
+                } message: { config in
+                    Text(config.message)
+                }
+                .confirmationDialog(
+                    navigationState.actionSheetConfig?.title ?? "",
+                    isPresented: Binding(
+                        get: { navigationState.actionSheetConfig != nil },
+                        set: { if !$0 { navigationState.actionSheetConfig = nil } }
+                    ),
+                    presenting: navigationState.actionSheetConfig
+                ) { config in
+                    ForEach(config.buttons, id: \.title) { button in
+                        Button(role: button.role) {
+                            button.action()
+                            navigationState.dismissActionSheet()
+                        } label: {
+                            Text(button.title)
                         }
                     }
-            }
+                } message: { config in
+                    if let message = config.message {
+                        Text(message)
+                    }
+                }
         }
-        .environmentObject(navigationState)
+        .environmentObject(navigationState)  // Inject navigationState at the root level
     }
 }
 
