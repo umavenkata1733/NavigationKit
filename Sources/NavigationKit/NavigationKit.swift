@@ -271,26 +271,28 @@ public struct NavigationContainer<Route: NavigationRoute, Content: View>: View {
 // MARK: - NavigationKit/Sources/NavigationKit/AppRoute.swift
 
 public enum AppRoute: NavigationRoute {
-    // Main routes
+    // Main Module Routes
+    case home
     case moduleA
     case moduleB
     case settings
     
-    // Module A specific routes
+    // Module A Routes
     case moduleADetail(id: String)
     case moduleASettings
     case moduleAProfile
     
-    // Module B specific routes
+    // Module B Routes
     case moduleBDetail(id: String)
     case moduleBSettings
     case moduleBProfile
     
-    // Cross-module routes
+    // Shared Routes
     case crossModuleFeature(source: String, data: String)
     
     public var id: String {
         switch self {
+        case .home: return "home"
         case .moduleA: return "moduleA"
         case .moduleB: return "moduleB"
         case .settings: return "settings"
@@ -306,14 +308,15 @@ public enum AppRoute: NavigationRoute {
     
     public var navigationType: NavigationType {
         switch self {
-        case .moduleA, .moduleB,
-             .moduleADetail, .moduleBDetail,
-             .crossModuleFeature:
+        case .home, .moduleA, .moduleB,
+             .moduleADetail, .moduleBDetail:
             return .push
         case .settings, .moduleASettings, .moduleBSettings:
             return .sheet
         case .moduleAProfile, .moduleBProfile:
             return .fullScreen
+        case .crossModuleFeature:
+            return .push
         }
     }
 }
