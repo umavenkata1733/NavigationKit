@@ -1,118 +1,300 @@
-//
-//  Nav.swift
-//  NavigationKit
-//
-//  Created by Anand on 1/14/25.
-//
-
+// Package.swift (Root)
 import SwiftUI
 import Combine
 
-public protocol NavigationNode: Hashable, Identifiable {
-    var navigationId: String { get }
+
+// Sources/Common/Coordinator.swift
+
+public protocol Coordinator: AnyObject {
+    associatedtype Route
+    associatedtype ViewType: View
+    
+    var navigationPath: NavigationPath { get set }
+    var sheet: Route? { get set }
+    
+    func handle(_ route: Route)
+    func view() -> ViewType
 }
 
-public extension NavigationNode {
-    var id: String { navigationId }
-}
+// Sources/Common/ViewModifier.swift
 
-/// A type-erased wrapper for NavigationNode to ensure Hashable conformance
-public struct ErasedNavigationNode: Hashable {
-    private let base: any NavigationNode
-    private let hashValueClosure: () -> Int
-    private let equalsClosure: (any NavigationNode) -> Bool
+public struct CoordinatorViewModifier<T: Coordinator>: ViewModifier {
+    @ObservedObject var coordinator: StateObject<T>.Wrapper
     
-    public init(_ base: any NavigationNode) {
-        self.base = base
-        self.hashValueClosure = { base.hashValue }
-        self.equalsClosure = { $0.navigationId == base.navigationId }
+    public init(coordinator: StateObject<T>.Wrapper) {
+        self.coordinator = coordinator
     }
     
-    public func hash(into hasher: inout Hasher) {
-        hashValueClosure().hash(into: &hasher)
-    }
-    
-    public static func == (lhs: ErasedNavigationNode, rhs: ErasedNavigationNode) -> Bool {
-        lhs.base.navigationId == rhs.base.navigationId
+    public func body(content: Content) -> some View {
+        content
+            .navigationPath(coordinator.wrappedValue.navigationPath)
+            .sheet(item: coordinator.projectedValue.sheet) { route in
+                coordinator.wrappedValue.handle(route)
+            }
     }
 }
 
-/// A struct to wrap NavigationNode for sheet presentation
-public struct SheetWrapper: Identifiable {
-    public let id: String
-    public let node: ErasedNavigationNode
+// Sources/Navigation/NavigationNode.swift
+import Foundation
+
+public enum NavigationNode: Hashable {
+    case category
+    case articleDetail(articleId: String)
+    case filter
+    case filterTagCollection
+}
+
+// Sources/Home/Presentation/HomeCoordinator.swift
+
+public class HomeCoordinator: ObservableObject, Coordinator {
+    @Published public var navigationPath = NavigationPath()
+    @Published public var sheet: NavigationNode?
     
-    public init(node: any NavigationNode) {
-        self.id = node.navigationId
-        self.node = ErasedNavigationNode(node)
+    public init() {}
+    
+    public func handle(_ route: NavigationNode) {
+        switch route {
+        case .category:
+            navigationPath.append(route)
+        default:
+            break
+        }
+    }
+    
+    public func view() -> some View {
+        HomeView(coordinator: self)
     }
 }
+
+// Sources/Home/Presentation/HomeView.swift
+public struct HomeView: View {
+    @ObservedObject var coordinator: HomeCoordinator
+    
+    public var body: some View {
+        VStack {
+            Text("Home")
+                .font(.title)
+            
+            Button("Go to Category") {
+                coordinator.handle(.category)
+            }
+        }
+    }
+}
+
+// Sources/Category/Presentation/CategoryCoordinator.swift
+
+public class CategoryCoordinator: ObservableObject, Coordinator {
+    @Published public var navigationPath = NavigationPath()
+    @Published public var sheet: NavigationNode?
+    
+    public init() {}
+    
+    public func handle(_ route: NavigationNode) {
+        switch route {
+        case .articleDetail:
+            navigationPath.append(route)
+        case .filter:
+            sheet = route
+        default:
+            break
+        }
+    }
+    
+    public func view() -> some View {
+        CategoryView(coordinator: self)
+    }
+}
+
+// Sources/Category/Presentation/CategoryView.swift
+import SwiftUI
+
+public struct CategoryView: View {
+    @ObservedObject var coordinator: CategoryCoordinator
+    
+    public var body: some View {
+        VStack {
+            Text("Category")
+                .font(.title)
+            
+            Button("Show Article") {
+                coordinator.handle(.articleDetail(articleId: "123"))
+            }
+            
+            Button("Show Filter") {
+                coordinator.handle(.filter)
+            }
+        }
+    }
+}
+
+// Sources/Article/Presentation/ArticleCoordinator.swift
+
+
+public class ArticleCoordinator: ObservableObject, Coordinator {
+    @Published public var navigationPath = NavigationPath()
+    @Published public var sheet: NavigationNode?
+    private let articleId: String
+    
+    public init(articleId: String) {
+        self.articleId = articleId
+    }
+    
+    public func handle(_ route: NavigationNode) {}
+    
+    public func view() -> some View {
+        ArticleView(coordinator: self, articleId: articleId)
+    }
+}
+
+// Sources/Article/Presentation/ArticleView.swift
+import SwiftUI
+
+public struct ArticleView: View {
+    @ObservedObject var coordinator: ArticleCoordinator
+    let articleId: String
+    
+    public var body: some View {
+        VStack {
+            Text("Article Detail")
+                .font(.title)
+            Text("ID: \(articleId)")
+        }
+    }
+}
+
+// Sources/Filter/Presentation/FilterCoordinator.swift
+
+
+public class FilterCoordinator: ObservableObject, Coordinator {
+    @Published public var navigationPath = NavigationPath()
+    @Published public var sheet: NavigationNode?
+    
+    public init() {}
+    
+    public func handle(_ route: NavigationNode) {
+        switch route {
+        case .filterTagCollection:
+            navigationPath.append(route)
+        default:
+            break
+        }
+    }
+    
+    public func view() -> some View {
+        FilterView(coordinator: self)
+    }
+}
+
+// Sources/Filter/Presentation/FilterView.swift
+
+
+public struct FilterView: View {
+    @ObservedObject var coordinator: FilterCoordinator
+    @Environment(\.dismiss) var dismiss
+    
+    public var body: some View {
+        NavigationView {
+            VStack {
+                Text("Filter")
+                    .font(.title)
+                
+                Button("Show Tag Collection") {
+                    coordinator.handle(.filterTagCollection)
+                }
+                
+                Button("Close") {
+                    dismiss()
+                }
+            }
+        }
+    }
+}
+
+// Sources/Filter/Presentation/FilterTagCollectionCoordinator.swift
+
+
+public class FilterTagCollectionCoordinator: ObservableObject, Coordinator {
+    @Published public var navigationPath = NavigationPath()
+    @Published public var sheet: NavigationNode?
+    
+    public init() {}
+    
+    public func handle(_ route: NavigationNode) {
+        switch route {
+        case .filter:
+            sheet = route
+        default:
+            break
+        }
+    }
+    
+    public func view() -> some View {
+        FilterTagCollectionView(coordinator: self)
+    }
+}
+
+// Sources/Filter/Presentation/FilterTagCollectionView.swift
+
+
+public struct FilterTagCollectionView: View {
+    @ObservedObject var coordinator: FilterTagCollectionCoordinator
+    @Environment(\.dismiss) var dismiss
+    
+    public var body: some View {
+        VStack {
+            Text("Filter Tag Collection")
+                .font(.title)
+            
+            Button("Show Another Filter") {
+                coordinator.handle(.filter)
+            }
+            
+            Button("Close") {
+                dismiss()
+            }
+        }
+    }
+}
+
+// Sources/AppCore/AppCoordinator.swift
+
 
 @MainActor
-public final class NavigationController: ObservableObject {
-    @Published public var path: NavigationPath = NavigationPath()
-    @Published public var presentedSheet: SheetWrapper?
+public class AppCoordinator: ObservableObject {
+    @Published var homeCoordinator: HomeCoordinator
     
-    public weak var parent: NavigationController?
-    @Published public var child: NavigationController?
-    
-    public init(parent: NavigationController? = nil) {
-        self.parent = parent
+    public init() {
+        self.homeCoordinator = HomeCoordinator()
     }
     
-    public func navigate<T: NavigationNode>(to node: T) {
-        path.append(ErasedNavigationNode(node))
-    }
-    
-    public func present<T: NavigationNode>(_ node: T) {
-        let childController = NavigationController(parent: self)
-        child = childController
-        presentedSheet = SheetWrapper(node: node)
-    }
-    
-    public func popLast() {
-        if !path.isEmpty {
-            _ = path.removeLast()
+    public func start() -> some View {
+        NavigationStack(path: $homeCoordinator.navigationPath) {
+            homeCoordinator.view()
+                .navigationDestination(for: NavigationNode.self) { node in
+                    switch node {
+                    case .category:
+                        CategoryCoordinator().view()
+                    case let .articleDetail(articleId):
+                        ArticleCoordinator(articleId: articleId).view()
+                    case .filter:
+                        FilterCoordinator().view()
+                    case .filterTagCollection:
+                        FilterTagCollectionCoordinator().view()
+                    }
+                }
         }
-    }
-    
-    public func dismiss() {
-        parent?.child = nil
-        parent?.presentedSheet = nil
     }
 }
 
-
-public struct NavigationStackView<Root: View, Destination: View>: View {
-    @ObservedObject private var controller: NavigationController
-    private let root: Root
-    private let destination: (ErasedNavigationNode) -> Destination
-
-    public init(
-        controller: NavigationController,
-        @ViewBuilder root: () -> Root,
-        @ViewBuilder destination: @escaping (ErasedNavigationNode) -> Destination
-    ) {
-        self.controller = controller
-        self.root = root()
-        self.destination = destination
-    }
-
-    public var body: some View {
-        NavigationStack(path: $controller.path) {
-            root
-                .navigationDestination(for: ErasedNavigationNode.self) { node in
-                    destination(node)
-                }
-        }
-        .sheet(item: $controller.presentedSheet) { wrapper in
-            if let childController = controller.child {
-                NavigationStackView(
-                    controller: childController,
-                    root: { root }, // Pass the same root
-                    destination: destination
-                )
-            }
+// Main App Entry Point
+@main
+struct NavigationDemoApp: App {
+    @StateObject private var appCoordinator = AppCoordinator()
+    
+    var body: some Scene {
+        WindowGroup {
+            appCoordinator.start()
         }
     }
 }
