@@ -1,88 +1,155 @@
 
 import SwiftUI
 
+// Domain/Models/BenefitModels.swift
 
-// Models/BenefitSummary.swift
+import Foundation
+
+/// Main model representing the entire benefit summary section
 public struct BenefitSummary {
-    public let title: String
-    public let titleHeader: String
-
-    public let description: String
-    public let commonlyUsedServicesTitle: String
-    public let commonlyUsedServices: [String]
+    /// Header information for the benefit summary
+    public let header: BenefitHeader
     
-    public init(title: String, titleHeader: String, description: String, commonlyUsedServicesTitle: String, commonlyUsedServices: [String]) {
+    /// Plan details section
+    public let plan: PlanDetails
+    
+    /// Services section with commonly used services
+    public let services: ServicesDetails
+    
+    public init(
+        header: BenefitHeader,
+        plan: PlanDetails,
+        services: ServicesDetails
+    ) {
+        self.header = header
+        self.plan = plan
+        self.services = services
+    }
+}
+
+/// Represents the header section of the benefit summary
+public struct BenefitHeader {
+    /// Main title displayed at the top
+    public let title: String
+    
+    public init(title: String) {
         self.title = title
-        self.titleHeader = titleHeader
-        self.description = description
-        self.commonlyUsedServicesTitle = commonlyUsedServicesTitle
-        self.commonlyUsedServices = commonlyUsedServices
     }
 }
 
-// Views/BenefitSummaryView.swift
-public struct BenefitSummaryView: View {
-    public let benefitSummary: BenefitSummary
-    
-    public init(benefitSummary: BenefitSummary) {
-        self.benefitSummary = benefitSummary
-    }
-    
-    public var body: some View {
-        
-        VStack(alignment: .leading, spacing: 0) { // Ensure no extra spacing
-            headerSection
-
-            VStack(alignment: .leading, spacing: 0) { // Ensure no spacing
-                UnderstandYourPlanView(title: benefitSummary.title, description: benefitSummary.description)
-                    .foregroundColor(Color(.black))
-
-                Divider()
-                    .padding(.vertical, 8)
-
-                CommonlyUsedServicesView(title: benefitSummary.commonlyUsedServicesTitle, services: benefitSummary.commonlyUsedServices)
-                    .foregroundColor(Color(.black))
-            }
-            .padding(16)
-            .background(Color(.white)) // Explicitly set background to white
-            .cornerRadius(8)
-        }
-        .background(Color.clear) // Remove unwanted gray background
-    }
-    
-    private var headerSection: some View {
-        HStack {
-            Text("Understand Your Plan")
-                .font(.title2)
-                .fontWeight(.bold)
-                .foregroundColor(Color(.black))
-
-            Spacer()
-        }.background(Color(.systemBackground))
-    }
-}
-
-
-
-
-
-// Views/UnderstandYourPlanView.swift
-public struct UnderstandYourPlanView: View {
+/// Contains information about the plan details section
+public struct PlanDetails {
+    /// Title of the plan section
     public let title: String
+    
+    /// Description text explaining the plan
     public let description: String
     
     public init(title: String, description: String) {
         self.title = title
         self.description = description
     }
+}
+
+/// Represents the commonly used services section
+public struct ServicesDetails {
+    /// Title of the services section
+    public let title: String
     
-    public var body: some View {
-        NavigationLink(destination: DetailView(title: title)) { // Navigate to DetailView
-            
+    /// Description text for the services section
+    public let description: String
+    
+    /// Array of available services
+    public let services: [ServiceItem]
+    
+    public init(
+        title: String,
+        description: String = "Review benefits details covered under your plan.",
+        services: [ServiceItem]
+    ) {
+        self.title = title
+        self.description = description
+        self.services = services
+    }
+}
+
+/// Individual service item model
+public struct ServiceItem: Hashable {
+    /// Unique identifier for the service
+    public let id: String
+    
+    /// Display title for the service
+    public let title: String
+    
+    public init(id: String = UUID().uuidString, title: String) {
+        self.id = id
+        self.title = title
+    }
+}
+
+// Domain/Protocols/BenefitActions.swift
+
+import Foundation
+
+/// Protocol defining possible actions in the benefits summary view
+public protocol BenefitSummaryActionDelegate: AnyObject {
+    /// Called when user selects the plan section
+    /// - Parameter title: Title of the selected plan
+    func didSelectPlan(title: String)
+    
+    /// Called when user selects a specific service
+    /// - Parameter title: Title of the selected service
+    func didSelectService(title: String)
+}
+
+
+// Presentation/ViewModels/BenefitSummaryViewModel.swift
+
+import SwiftUI
+
+/// ViewModel managing the state and actions for the benefit summary view
+@MainActor
+public final class BenefitSummaryViewModel: ObservableObject {
+    /// Published benefit summary data
+    @Published private(set) var summary: BenefitSummary
+    
+    /// Weak reference to the action delegate
+    private weak var delegate: BenefitSummaryActionDelegate?
+    
+    public init(summary: BenefitSummary, delegate: BenefitSummaryActionDelegate?) {
+        self.summary = summary
+        self.delegate = delegate
+    }
+    
+    /// Handles selection of the plan section
+    func handlePlanSelection() {
+        delegate?.didSelectPlan(title: summary.plan.title)
+    }
+    
+    /// Handles selection of a service item
+    /// - Parameter service: The selected service item
+    func handleServiceSelection(_ service: ServiceItem) {
+        delegate?.didSelectService(title: service.title)
+    }
+}
+
+// Presentation/Views/Components/UnderstandYourPlanSection.swift
+
+import SwiftUI
+
+/// View component for the plan understanding section
+struct UnderstandYourPlanSection: View {
+    let title: String
+    let description: String
+    let onSelect: () -> Void
+    
+    var body: some View {
+        Button(action: onSelect) {
             VStack(alignment: .leading, spacing: 8) {
                 HStack {
                     Text(title)
                         .font(.headline)
+                        .foregroundColor(.primary)
                     Spacer()
                     Image(systemName: "chevron.right")
                         .foregroundColor(.blue)
@@ -90,66 +157,30 @@ public struct UnderstandYourPlanView: View {
                 
                 Text(description)
                     .font(.subheadline)
-                    .foregroundColor(.gray)
+                    .foregroundColor(.secondary)
             }
             .padding(.bottom, 8)
         }
     }
 }
 
+// Presentation/Views/Components/ServiceItemView.swift
 
-// Views/CommonlyUsedServicesView.swift
-public struct CommonlyUsedServicesView: View {
-    public let title: String
-    public let services: [String]
-    
-    public init(title: String, services: [String]) {
-        self.title = title
-        self.services = services
-    }
-    
-    public var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text(title)
-                .font(.headline)
-            
-            Text("Review benefits details covered under your plan.")
-                .font(.subheadline)
-                .foregroundColor(.gray)
-            
-            let rows = services.chunked(into: 2)
-            
-            ForEach(rows, id: \.self) { row in
-                HStack(spacing: 8) {
-                    ForEach(row, id: \.self) { service in
-                        ServiceView(service: service)
-                    }
-                    
-                    if row.count == 1 {
-                        Spacer()
-                    }
-                }
-            }
-        }
-        .padding(.top, 8)
-    }
-}
+import SwiftUI
 
-// Views/ServiceView.swift
-public struct ServiceView: View {
-    public let service: String
+/// View component representing a single service item
+struct ServiceItemView: View {
+    let service: ServiceItem
+    let onSelect: () -> Void
     
-    public init(service: String) {
-        self.service = service
-    }
-    
-    public var body: some View {
-        NavigationLink(destination: DetailView(title: service)) { // Navigate to DetailView
-            Text(service)
+    var body: some View {
+        Button(action: onSelect) {
+            Text(service.title)
                 .font(.subheadline)
                 .foregroundColor(.blue)
                 .lineLimit(1)
                 .padding()
+                .frame(maxWidth: .infinity)
                 .background(
                     RoundedRectangle(cornerRadius: 20)
                         .fill(Color.blue.opacity(0.02))
@@ -162,36 +193,141 @@ public struct ServiceView: View {
     }
 }
 
+// Presentation/Views/Components/CommonlyUsedServicesSection.swift
 
-extension View {
-    func selectionEffect() -> some View {
-        self.onTapGesture {}
-            .background(
-                RoundedRectangle(cornerRadius: 10)
-                    .fill(Color.gray.opacity(0.2))
-                    .opacity(0.7)
-                    .blur(radius: 4)
-                    .padding(-8)
-            )
-    }
-}
+import SwiftUI
 
-extension Array {
-    func chunked(into size: Int) -> [[Element]] {
-        return stride(from: 0, to: count, by: size).map {
-            Array(self[$0 ..< Swift.min($0 + size, count)])
+/// View component for the commonly used services section
+struct CommonlyUsedServicesSection: View {
+    let title: String
+    let description: String
+    let services: [ServiceItem]
+    let onSelect: (ServiceItem) -> Void
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text(title)
+                .font(.headline)
+            
+            Text(description)
+                .font(.subheadline)
+                .foregroundColor(.secondary)
+            
+            LazyVGrid(columns: [
+                GridItem(.flexible()),
+                GridItem(.flexible())
+            ], spacing: 8) {
+                ForEach(services, id: \.id) { service in
+                    ServiceItemView(
+                        service: service,
+                        onSelect: { onSelect(service) }
+                    )
+                }
+            }
         }
+        .padding(.top, 8)
     }
 }
 
-public struct DetailView: View {
-    public let title: String
+// Presentation/Views/BenefitSummaryView.swift
+
+import SwiftUI
+
+/// Main view for displaying the benefit summary
+public struct BenefitSummaryView: View {
+    @StateObject private var viewModel: BenefitSummaryViewModel
+    
+    public init(viewModel: BenefitSummaryViewModel) {
+        _viewModel = StateObject(wrappedValue: viewModel)
+    }
     
     public var body: some View {
-        List(1...10, id: \.self) { index in
-            Text("\(title) - Item \(index)")
+        VStack(alignment: .leading, spacing: 0) {
+            headerSection
+            contentSection
         }
-        .navigationTitle(title) // Set the title dynamically
+        .background(Color.clear)
+    }
+    
+    private var headerSection: some View {
+        Text(viewModel.summary.header.title)
+            .font(.title2)
+            .fontWeight(.bold)
+            .foregroundColor(.primary)
+            .padding(.bottom, 16)
+    }
+    
+    private var contentSection: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            UnderstandYourPlanSection(
+                title: viewModel.summary.plan.title,
+                description: viewModel.summary.plan.description,
+                onSelect: viewModel.handlePlanSelection
+            )
+            
+            Divider()
+                .padding(.vertical, 8)
+            
+            CommonlyUsedServicesSection(
+                title: viewModel.summary.services.title,
+                description: viewModel.summary.services.description,
+                services: viewModel.summary.services.services,
+                onSelect: viewModel.handleServiceSelection
+            )
+        }
+        .padding(16)
+        .background(Color(.systemBackground))
+        .cornerRadius(8)
+    }
+}
+
+// Example/BenefitsUsageExample.swift
+
+import SwiftUI
+
+/// Example coordinator showing how to implement the delegate
+class BenefitsCoordinator: BenefitSummaryActionDelegate {
+    func didSelectPlan(title: String) {
+        // Handle plan selection navigation
+        print("Selected plan: \(title)")
+    }
+    
+    func didSelectService(title: String) {
+        // Handle service selection navigation
+        print("Selected service: \(title)")
+    }
+}
+
+/// Example view showing how to use the benefits summary
+struct BenefitsExampleView: View {
+    let coordinator = BenefitsCoordinator()
+    
+    var body: some View {
+        // Create sample data
+        let summary = BenefitSummary(
+            header: BenefitHeader(title: "Understand Your Plan"),
+            plan: PlanDetails(
+                title: "Your Plan Summary",
+                description: "Learn about your coverage and costs."
+            ),
+            services: ServicesDetails(
+                title: "Commonly Used Services",
+                services: [
+                    ServiceItem(title: "Doctor visits"),
+                    ServiceItem(title: "Lab work"),
+                    ServiceItem(title: "X-rays"),
+                    ServiceItem(title: "Prescriptions")
+                ]
+            )
+        )
+        
+        // Create and return view
+        BenefitSummaryView(
+            viewModel: BenefitSummaryViewModel(
+                summary: summary,
+                delegate: coordinator
+            )
+        )
     }
 }
 
