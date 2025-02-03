@@ -330,52 +330,203 @@ struct BenefitsExampleView: View {
         )
     }
 }
-struct CommonlyUsedServicesSection: View {
-    let title: String
-    let description: String
-    let services: [ServiceItem]
-    let onSelect: (ServiceItem) -> Void
+
+
+//Test cases
+
+// Tests/BenefitsKitTests/Domain/Models/BenefitModelsTests.swift
+
+import XCTest
+@testable import BenefitsKit
+
+class BenefitModelsTests: XCTestCase {
+    func testBenefitSummaryInitialization() {
+        // Given
+        let header = BenefitHeader(title: "Test Header")
+        let plan = PlanDetails(title: "Test Plan", description: "Test Description")
+        let services = ServicesDetails(
+            title: "Test Services",
+            services: [ServiceItem(title: "Test Service")]
+        )
+        
+        // When
+        let summary = BenefitSummary(header: header, plan: plan, services: services)
+        
+        // Then
+        XCTAssertEqual(summary.header.title, "Test Header")
+        XCTAssertEqual(summary.plan.title, "Test Plan")
+        XCTAssertEqual(summary.services.services.count, 1)
+        XCTAssertEqual(summary.services.services.first?.title, "Test Service")
+    }
     
-    var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text(title)
-                .font(.headline)
-            
-            Text(description)
-                .font(.subheadline)
-                .foregroundColor(.secondary)
-            
-            VStack(spacing: 8) {
-                let pairs = stride(from: 0, to: services.count, by: 2).map {
-                    Array(services[$0..<min($0 + 2, services.count)])
-                }
-                
-                ForEach(pairs.indices, id: \.self) { index in
-                    let pair = pairs[index]
-                    
-                    HStack(alignment: .top, spacing: 8) {
-                        if !pair.isEmpty {
-                            ServiceItemView(
-                                service: pair[0],
-                                onSelect: { onSelect(pair[0]) }
-                            )
-                            .frame(maxWidth: .infinity)
-                        }
-                        
-                        if pair.count > 1 {
-                            ServiceItemView(
-                                service: pair[1],
-                                onSelect: { onSelect(pair[1]) }
-                            )
-                            .frame(maxWidth: .infinity)
-                        } else {
-                            Spacer(minLength: 0)
-                                .frame(maxWidth: .infinity)
-                        }
-                    }
-                }
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
-        }
+    func testServiceItemHashable() {
+        // Given
+        let serviceA = ServiceItem(id: "1", title: "Service A")
+        let serviceB = ServiceItem(id: "1", title: "Service A")
+        let serviceC = ServiceItem(id: "2", title: "Service A")
+        
+        // Then
+        XCTAssertEqual(serviceA, serviceB)
+        XCTAssertNotEqual(serviceA, serviceC)
+        
+        // Test hash set behavior
+        let serviceSet = Set([serviceA, serviceB, serviceC])
+        XCTAssertEqual(serviceSet.count, 2)
     }
 }
+
+// Tests/BenefitsKitTests/Presentation/ViewModels/BenefitSummaryViewModelTests.swift
+
+import XCTest
+@testable import BenefitsKit
+
+class MockBenefitDelegate: BenefitSummaryActionDelegate {
+    var planSelectedTitle: String?
+    var serviceSelectedTitle: String?
+    
+    func didSelectPlan(title: String) {
+        planSelectedTitle = title
+    }
+    
+    func didSelectService(title: String) {
+        serviceSelectedTitle = title
+    }
+}
+
+class BenefitSummaryViewModelTests: XCTestCase {
+    var sut: BenefitSummaryViewModel!
+    var mockDelegate: MockBenefitDelegate!
+    
+    override func setUp() {
+        super.setUp()
+        mockDelegate = MockBenefitDelegate()
+        
+        let summary = BenefitSummary(
+            header: BenefitHeader(title: "Test Header"),
+            plan: PlanDetails(title: "Test Plan", description: "Test Description"),
+            services: ServicesDetails(
+                title: "Test Services",
+                services: [ServiceItem(title: "Test Service")]
+            )
+        )
+        
+        sut = BenefitSummaryViewModel(summary: summary, delegate: mockDelegate)
+    }
+    
+    override func tearDown() {
+        sut = nil
+        mockDelegate = nil
+        super.tearDown()
+    }
+    
+    func testHandlePlanSelection() {
+        // When
+        sut.handlePlanSelection()
+        
+        // Then
+        XCTAssertEqual(mockDelegate.planSelectedTitle, "Test Plan")
+    }
+    
+    func testHandleServiceSelection() {
+        // Given
+        let service = ServiceItem(title: "Test Service")
+        
+        // When
+        sut.handleServiceSelection(service)
+        
+        // Then
+        XCTAssertEqual(mockDelegate.serviceSelectedTitle, "Test Service")
+    }
+}
+
+// Tests/BenefitsKitTests/Presentation/Views/BenefitSummaryViewUITests.swift
+
+import XCTest
+import SwiftUI
+import ViewInspector
+@testable import BenefitsKit
+
+extension BenefitSummaryView: Inspectable { }
+extension UnderstandYourPlanSection: Inspectable { }
+extension CommonlyUsedServicesSection: Inspectable { }
+extension ServiceItemView: Inspectable { }
+
+class BenefitSummaryViewUITests: XCTestCase {
+    var sut: BenefitSummaryView!
+    var mockDelegate: MockBenefitDelegate!
+    
+    override func setUp() {
+        super.setUp()
+        mockDelegate = MockBenefitDelegate()
+        
+        let summary = BenefitSummary(
+            header: BenefitHeader(title: "Test Header"),
+            plan: PlanDetails(title: "Test Plan", description: "Test Description"),
+            services: ServicesDetails(
+                title: "Test Services",
+                services: [
+                    ServiceItem(title: "Service 1"),
+                    ServiceItem(title: "Service 2")
+                ]
+            )
+        )
+        
+        let viewModel = BenefitSummaryViewModel(summary: summary, delegate: mockDelegate)
+        sut = BenefitSummaryView(viewModel: viewModel)
+    }
+    
+    func testHeaderDisplaysCorrectly() throws {
+        let header = try sut.inspect().find(text: "Test Header")
+        XCTAssertNotNil(header)
+    }
+    
+    func testPlanSectionDisplaysCorrectly() throws {
+        let planTitle = try sut.inspect().find(text: "Test Plan")
+        let planDescription = try sut.inspect().find(text: "Test Description")
+        
+        XCTAssertNotNil(planTitle)
+        XCTAssertNotNil(planDescription)
+    }
+    
+    func testServicesDisplayCorrectly() throws {
+        let service1 = try sut.inspect().find(text: "Service 1")
+        let service2 = try sut.inspect().find(text: "Service 2")
+        
+        XCTAssertNotNil(service1)
+        XCTAssertNotNil(service2)
+    }
+    
+    func testPlanSelectionTriggersDelegate() throws {
+        // When
+        try sut.inspect().find(UnderstandYourPlanSection.self).button().tap()
+        
+        // Then
+        XCTAssertEqual(mockDelegate.planSelectedTitle, "Test Plan")
+    }
+    
+    func testServiceSelectionTriggersDelegate() throws {
+        // When
+        try sut.inspect().find(ServiceItemView.self).button().tap()
+        
+        // Then
+        XCTAssertEqual(mockDelegate.serviceSelectedTitle, "Service 1")
+    }
+}
+
+// Package.swift updates for testing dependencies
+
+//// Add ViewInspector dependency
+//dependencies: [
+//    .package(url: "https://github.com/nalexn/ViewInspector", from: "0.9.0")
+//]
+//
+//// Add dependency to test target
+//targets: [
+//    .testTarget(
+//        name: "BenefitsKitTests",
+//        dependencies: [
+//            "BenefitsKit",
+//            "ViewInspector"
+//        ]
+//    )
+//]
