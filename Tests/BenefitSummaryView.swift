@@ -330,29 +330,52 @@ struct BenefitsExampleView: View {
         )
     }
 }
-
-
-// Create pairs of services
-            ForEach(0...(services.count - 1) / 2, id: \.self) { rowIndex in
-                HStack(spacing: 8) {
-                    // First item in pair
-                    ServiceItemView(
-                        service: services[rowIndex * 2],
-                        onSelect: { onSelect(services[rowIndex * 2]) }
-                    )
-                    .frame(maxWidth: .infinity)
+struct CommonlyUsedServicesSection: View {
+    let title: String
+    let description: String
+    let services: [ServiceItem]
+    let onSelect: (ServiceItem) -> Void
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text(title)
+                .font(.headline)
+            
+            Text(description)
+                .font(.subheadline)
+                .foregroundColor(.secondary)
+            
+            VStack(spacing: 8) {
+                let pairs = stride(from: 0, to: services.count, by: 2).map {
+                    Array(services[$0..<min($0 + 2, services.count)])
+                }
+                
+                ForEach(pairs.indices, id: \.self) { index in
+                    let pair = pairs[index]
                     
-                    // Second item if exists
-                    if rowIndex * 2 + 1 < services.count {
-                        ServiceItemView(
-                            service: services[rowIndex * 2 + 1],
-                            onSelect: { onSelect(services[rowIndex * 2 + 1]) }
-                        )
-                        .frame(maxWidth: .infinity)
-                    } else {
-                        Spacer()
+                    HStack(alignment: .top, spacing: 8) {
+                        if !pair.isEmpty {
+                            ServiceItemView(
+                                service: pair[0],
+                                onSelect: { onSelect(pair[0]) }
+                            )
                             .frame(maxWidth: .infinity)
+                        }
+                        
+                        if pair.count > 1 {
+                            ServiceItemView(
+                                service: pair[1],
+                                onSelect: { onSelect(pair[1]) }
+                            )
+                            .frame(maxWidth: .infinity)
+                        } else {
+                            Spacer(minLength: 0)
+                                .frame(maxWidth: .infinity)
+                        }
                     }
                 }
             }
-            .padding(.top, 8)
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+    }
+}
