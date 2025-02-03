@@ -331,3 +331,28 @@ struct BenefitsExampleView: View {
     }
 }
 
+
+// Create pairs of services
+            ForEach(0...(services.count - 1) / 2, id: \.self) { rowIndex in
+                HStack(spacing: 8) {
+                    // First item in pair
+                    ServiceItemView(
+                        service: services[rowIndex * 2],
+                        onSelect: { onSelect(services[rowIndex * 2]) }
+                    )
+                    .frame(maxWidth: .infinity)
+                    
+                    // Second item if exists
+                    if rowIndex * 2 + 1 < services.count {
+                        ServiceItemView(
+                            service: services[rowIndex * 2 + 1],
+                            onSelect: { onSelect(services[rowIndex * 2 + 1]) }
+                        )
+                        .frame(maxWidth: .infinity)
+                    } else {
+                        Spacer()
+                            .frame(maxWidth: .infinity)
+                    }
+                }
+            }
+            .padding(.top, 8)
