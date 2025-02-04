@@ -168,3 +168,191 @@ struct BenefitsContainerView: View {
         }
     }
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+# Sources/BenefitsKit/Data/LocalData/LocalModels.swift
+struct LocalDentalBenefit {
+    let title: String
+    let subtitle: String
+    let isEnabled: Bool
+    
+    func toDomain() -> DentalBenefitModel {
+        DentalBenefitModel(
+            title: title,
+            subtitle: subtitle,
+            isEnabled: isEnabled
+        )
+    }
+}
+
+struct LocalMedicalBenefit {
+    let title: String
+    let coverage: String
+    let isEnabled: Bool
+    
+    func toDomain() -> MedicalBenefitModel {
+        MedicalBenefitModel(
+            title: title,
+            coverage: coverage,
+            isEnabled: isEnabled
+        )
+    }
+}
+
+# Sources/BenefitsKit/Data/LocalData/LocalDataSource.swift
+protocol LocalDataSourceProtocol {
+    func fetchDentalBenefit() async throws -> LocalDentalBenefit
+    func fetchMedicalBenefit() async throws -> LocalMedicalBenefit
+}
+
+class LocalDataSource: LocalDataSourceProtocol {
+    func fetchDentalBenefit() async throws -> LocalDentalBenefit {
+        // Simulate network delay
+        try await Task.sleep(nanoseconds: 1_000_000_000)
+        
+        return LocalDentalBenefit(
+            title: "Dental Coverage",
+            subtitle: "Includes cleanings and checkups",
+            isEnabled: true
+        )
+    }
+    
+    func fetchMedicalBenefit() async throws -> LocalMedicalBenefit {
+        // Simulate network delay
+        try await Task.sleep(nanoseconds: 1_000_000_000)
+        
+        return LocalMedicalBenefit(
+            title: "Medical Coverage",
+            coverage: "Full health coverage",
+            isEnabled: true
+        )
+    }
+}
+
+# Sources/BenefitsKit/Data/Repository/LocalBenefitsRepository.swift
+class LocalBenefitsRepository: BenefitsRepositoryProtocol {
+    private let dataSource: LocalDataSourceProtocol
+    
+    init(dataSource: LocalDataSourceProtocol) {
+        self.dataSource = dataSource
+    }
+    
+    func fetchDentalBenefits() async throws -> DentalBenefitModel {
+        let localBenefit = try await dataSource.fetchDentalBenefit()
+        return localBenefit.toDomain()
+    }
+    
+    func fetchMedicalBenefits() async throws -> MedicalBenefitModel {
+        let localBenefit = try await dataSource.fetchMedicalBenefit()
+        return localBenefit.toDomain()
+    }
+}
+
+# Usage Example:
+// In your app:
+struct ContentView: View {
+    var body: some View {
+        let dataSource = LocalDataSource()
+        let repository = LocalBenefitsRepository(dataSource: dataSource)
+        let useCase = DefaultFetchBenefitsUseCase(repository: repository)
+        
+        BenefitsContainerView(useCase: useCase)
+    }
+}
+
+
+
+
+# Sources/BenefitsKit/Data/LocalData/BenefitExamples.swift
+extension LocalDataSource {
+    // Different dental benefit examples
+    enum DentalExample {
+        static let enabled = LocalDentalBenefit(
+            title: "Dental Coverage",
+            subtitle: "Includes cleanings and checkups",
+            isEnabled: true
+        )
+        
+        static let disabled = LocalDentalBenefit(
+            title: "Dental Coverage",
+            subtitle: "Not currently enrolled",
+            isEnabled: false
+        )
+        
+        static let premium = LocalDentalBenefit(
+            title: "Premium Dental Coverage",
+            subtitle: "Includes orthodontics",
+            isEnabled: true
+        )
+    }
+    
+    // Different medical benefit examples
+    enum MedicalExample {
+        static let basic = LocalMedicalBenefit(
+            title: "Basic Medical Coverage",
+            coverage: "Essential health benefits",
+            isEnabled: true
+        )
+        
+        static let premium = LocalMedicalBenefit(
+            title: "Premium Medical Coverage",
+            coverage: "Comprehensive coverage",
+            isEnabled: true
+        )
+        
+        static let disabled = LocalMedicalBenefit(
+            title: "Medical Coverage",
+            coverage: "Not enrolled",
+            isEnabled: false
+        )
+    }
+    
+    // Use different examples based on conditions
+    func fetchDentalBenefit() async throws -> LocalDentalBenefit {
+        try await Task.sleep(nanoseconds: 1_000_000_000)
+        
+        // You can return different examples based on conditions
+        let isPremium = Bool.random()
+        return isPremium ? DentalExample.premium : DentalExample.enabled
+    }
+    
+    func fetchMedicalBenefit() async throws -> LocalMedicalBenefit {
+        try await Task.sleep(nanoseconds: 1_000_000_000)
+        
+        // You can return different examples based on conditions
+        let isPremium = Bool.random()
+        return isPremium ? MedicalExample.premium : MedicalExample.basic
+    }
+}
