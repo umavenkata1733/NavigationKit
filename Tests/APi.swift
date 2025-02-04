@@ -1,189 +1,170 @@
-//
-//  APi.swift
-//  NavigationKit
-//
-//  Created by Anand on 2/4/25.
-//
-
-// MARK: - API Response States
-enum APIState<T> {
-    case loading
-    case success(T)
-    case error(Error)
-    case empty
+# Sources/BenefitsKit/Domain/Models/DentalBenefitModel.swift
+struct DentalBenefitModel {
+    let title: String
+    let subtitle: String
+    let isEnabled: Bool
 }
 
-// MARK: - View Model
+# Sources/BenefitsKit/Domain/Models/MedicalBenefitModel.swift
+struct MedicalBenefitModel {
+    let title: String
+    let coverage: String
+    let isEnabled: Bool
+}
+
+# Sources/BenefitsKit/Domain/UseCases/FetchBenefitsUseCase.swift
+protocol FetchBenefitsUseCase {
+    func fetchDentalBenefits() async throws -> DentalBenefitModel
+    func fetchMedicalBenefits() async throws -> MedicalBenefitModel
+}
+
+# Sources/BenefitsKit/Presentation/ViewModels/DentalBenefitsViewModel.swift
 @MainActor
-class BenefitsViewModel: ObservableObject {
-    @Published private(set) var dentalState: APIState<BenefitCardData> = .loading
-    @Published private(set) var medicalState: APIState<BenefitCardData> = .loading
-    @Published private(set) var wellnessState: APIState<BenefitCardData> = .loading
+final class DentalBenefitsViewModel: ObservableObject {
+    @Published private(set) var state: ViewState<DentalBenefitModel>?
+    private let useCase: FetchBenefitsUseCase
     
-    func loadData() async {
-        // Load dental benefits
+    init(useCase: FetchBenefitsUseCase) {
+        self.useCase = useCase
+    }
+    
+    func loadBenefits() async {
+        state = .loading
         do {
-            // Simulate API call
-            try await Task.sleep(nanoseconds: 2_000_000_000)
-            let dentalData = BenefitCardData(
-                icon: .dental,
-                title: "Dental Benefits",
-                subtitle: "Your plan includes dental coverage",
-                supportText: "View details"
-            )
-            dentalState = .success(dentalData)
+            let model = try await useCase.fetchDentalBenefits()
+            state = .loaded(model)
         } catch {
-            dentalState = .error(error)
+            state = .error(error)
         }
-        
-        // Load medical benefits
-        do {
-            try await Task.sleep(nanoseconds: 1_000_000_000)
-            let medicalData = BenefitCardData(
-                icon: .medical,
-                title: "Medical Benefits",
-                subtitle: "Review your coverage",
-                supportText: "Learn more"
-            )
-            medicalState = .success(medicalData)
-        } catch {
-            medicalState = .error(error)
-        }
-        
-        // Load wellness (simulating empty state)
-        wellnessState = .empty
     }
 }
 
-// MARK: - Main View
-struct BenefitsListView: View {
-    @StateObject private var viewModel = BenefitsViewModel()
-    private let coordinator: BenefitCoordinator
+# Sources/BenefitsKit/Presentation/ViewModels/MedicalBenefitsViewModel.swift
+@MainActor
+final class MedicalBenefitsViewModel: ObservableObject {
+    @Published private(set) var state: ViewState<MedicalBenefitModel>?
+    private let useCase: FetchBenefitsUseCase
     
-    init(coordinator: BenefitCoordinator) {
-        self.coordinator = coordinator
+    init(useCase: FetchBenefitsUseCase) {
+        self.useCase = useCase
+    }
+    
+    func loadBenefits() async {
+        state = .loading
+        do {
+            let model = try await useCase.fetchMedicalBenefits()
+            state = .loaded(model)
+        } catch {
+            state = .error(error)
+        }
+    }
+}
+
+# Sources/BenefitsKit/Presentation/Views/DentalBenefits/DentalBenefitsView.swift
+struct DentalBenefitsView: View {
+    @ObservedObject var viewModel: DentalBenefitsViewModel
+    
+    var body: some View {
+        ViewStateContainer(state: viewModel.state) { model in
+            if model.isEnabled {
+                DentalBenefitsContent(model: model)
+            }
+        }
+    }
+}
+
+struct DentalBenefitsContent: View {
+    let model: DentalBenefitModel
+    
+    var body: some View {
+        VStack(alignment: .leading) {
+            Text(model.title)
+                .font(.headline)
+            Text(model.subtitle)
+                .font(.subheadline)
+        }
+        .padding()
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color(.systemBackground))
+        .cornerRadius(12)
+    }
+}
+
+# Sources/BenefitsKit/Presentation/Views/MedicalBenefits/MedicalBenefitsView.swift
+struct MedicalBenefitsView: View {
+    @ObservedObject var viewModel: MedicalBenefitsViewModel
+    
+    var body: some View {
+        ViewStateContainer(state: viewModel.state) { model in
+            if model.isEnabled {
+                MedicalBenefitsContent(model: model)
+            }
+        }
+    }
+}
+
+struct MedicalBenefitsContent: View {
+    let model: MedicalBenefitModel
+    
+    var body: some View {
+        VStack(alignment: .leading) {
+            Text(model.title)
+                .font(.headline)
+            Text(model.coverage)
+                .font(.subheadline)
+        }
+        .padding()
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color(.systemBackground))
+        .cornerRadius(12)
+    }
+}
+
+# Sources/BenefitsKit/Presentation/Views/Shared/ViewStateContainer.swift
+struct ViewStateContainer<T, Content: View>: View {
+    let state: ViewState<T>?
+    let content: (T) -> Content
+    
+    var body: some View {
+        if let state = state {
+            switch state {
+            case .loading:
+                ProgressView()
+            case .loaded(let model):
+                content(model)
+            case .error:
+                EmptyView()
+            }
+        } else {
+            EmptyView()
+        }
+    }
+}
+
+# Sources/BenefitsKit/Presentation/Views/BenefitsContainerView.swift
+struct BenefitsContainerView: View {
+    @StateObject private var dentalViewModel: DentalBenefitsViewModel
+    @StateObject private var medicalViewModel: MedicalBenefitsViewModel
+    
+    init(useCase: FetchBenefitsUseCase) {
+        _dentalViewModel = StateObject(wrappedValue: DentalBenefitsViewModel(useCase: useCase))
+        _medicalViewModel = StateObject(wrappedValue: MedicalBenefitsViewModel(useCase: useCase))
     }
     
     var body: some View {
-        ScrollView {
-            VStack(spacing: 16) {
-                // Dental Benefits Section
-                switch viewModel.dentalState {
-                case .loading:
-                    LoadingView()
-                case .success(let data):
-                    BenefitCardView(data: data, delegate: coordinator)
-                case .error(let error):
-                    ErrorView(error: error, retryAction: loadData)
-                case .empty:
-                    EmptyView()
-                }
-                
-                // Medical Benefits Section
-                switch viewModel.medicalState {
-                case .loading:
-                    LoadingView()
-                case .success(let data):
-                    BenefitCardView(data: data, delegate: coordinator)
-                case .error(let error):
-                    ErrorView(error: error, retryAction: loadData)
-                case .empty:
-                    EmptyView()
-                }
-                
-                // Wellness Section (if available)
-                if case .success(let data) = viewModel.wellnessState {
-                    BenefitCardView(data: data, delegate: coordinator)
-                }
-            }
-            .padding()
+        VStack(spacing: 16) {
+            DentalBenefitsView(viewModel: dentalViewModel)
+            MedicalBenefitsView(viewModel: medicalViewModel)
         }
         .task {
             await loadData()
         }
     }
     
-    private func loadData() {
-        Task {
-            await viewModel.loadData()
+    private func loadData() async {
+        await withTaskGroup(of: Void.self) { group in
+            group.addTask { await dentalViewModel.loadBenefits() }
+            group.addTask { await medicalViewModel.loadBenefits() }
         }
-    }
-}
-
-// MARK: - Helper Views
-struct LoadingView: View {
-    var body: some View {
-        HStack {
-            Spacer()
-            ProgressView()
-                .progressViewStyle(CircularProgressViewStyle())
-            Spacer()
-        }
-        .frame(height: 120)
-        .background(Color(.systemBackground))
-        .cornerRadius(12)
-        .shadow(radius: 1)
-    }
-}
-
-struct ErrorView: View {
-    let error: Error
-    let retryAction: () -> Void
-    
-    var body: some View {
-        VStack(spacing: 16) {
-            Image(systemName: "exclamationmark.triangle")
-                .font(.system(size: 24))
-                .foregroundColor(.red)
-            
-            Text("Unable to load benefits")
-                .font(.headline)
-            
-            Text(error.localizedDescription)
-                .font(.subheadline)
-                .foregroundColor(.secondary)
-                .multilineTextAlignment(.center)
-            
-            Button("Try Again") {
-                retryAction()
-            }
-            .foregroundColor(.blue)
-        }
-        .padding()
-        .frame(maxWidth: .infinity)
-        .background(Color(.systemBackground))
-        .cornerRadius(12)
-        .shadow(radius: 1)
-    }
-}
-
-struct EmptyStateView: View {
-    var body: some View {
-        VStack(spacing: 16) {
-            Image(systemName: "doc.text")
-                .font(.system(size: 24))
-                .foregroundColor(.gray)
-            
-            Text("No benefits available")
-                .font(.headline)
-            
-            Text("Check back later for updates")
-                .font(.subheadline)
-                .foregroundColor(.secondary)
-        }
-        .padding()
-        .frame(maxWidth: .infinity)
-        .background(Color(.systemBackground))
-        .cornerRadius(12)
-        .shadow(radius: 1)
-    }
-}
-
-// MARK: - Usage Example
-struct ContentView: View {
-    let coordinator = BenefitCoordinator()
-    
-    var body: some View {
-        BenefitsListView(coordinator: coordinator)
     }
 }
