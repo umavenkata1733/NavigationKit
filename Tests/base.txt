@@ -1,0 +1,76 @@
+Base Configuration Documentation
+
+Purpose of the Base Configuration
+
+The Base Configuration is designed to centralize and manage dependencies that are essential for the SDK. This configuration layer ensures modularity and reusability while keeping the SDK decoupled from the app’s specific implementation. The key aspects handled by the base configuration include:
+
+Localization: Centralized management of localized strings.
+
+API Configuration: Defining the API base URL and integration logic.
+
+Theming: Providing a consistent theme structure across the SDK.
+
+Dependency Injection: Ensuring that the SDK remains modular and testable by injecting required dependencies at runtime.
+
+By encapsulating these dependencies within a structured configuration, the SDK maintains a flexible and scalable architecture.
+
+Flowchart for Base Configuration
+
+Below is a structured flowchart explaining the step-by-step process of handling the Base Configuration in the SDK:
+
+Start → The SDK initializes with the BaseConfiguration.
+
+Dependency Injection → Injects required dependencies such as Localization, API Configuration, and Theming.
+
+Localization Setup → The SDK retrieves localized strings using the LocalizationProvider.
+
+API Configuration → The SDK accesses the API base URL and integration logic.
+
+Theming Application → The SDK applies theming settings for UI consistency.
+
+Completion → The SDK is fully configured and ready for use.
+
+    [Start]
+       |
+       v
+    [BaseConfiguration Initialized]
+       |
+       v
+    [Dependency Injection]
+       |
+       v
+    [Localization Setup] ---> [LocalizationProvider Used]
+       |
+       v
+    [API Configuration] ---> [API Base URL & Integration]
+       |
+       v
+    [Theming Application] ---> [Theme Applied to UI]
+       |
+       v
+    [SDK Ready for Use]
+
+Purpose of Dependency Injection
+
+Dependency Injection (DI) ensures that the SDK remains independent of the app’s internal logic while still having access to necessary shared resources. The SDK must accept a BaseConfiguration class as a parameter to:
+
+Reduce tight coupling by abstracting dependencies.
+
+Enable easy customization by allowing apps to provide their own implementation of dependencies.
+
+Enhance testability by injecting mock implementations during unit testing.
+
+Support scalability by facilitating the addition of new dependencies without modifying existing SDK logic.
+
+Purpose of Localization
+
+Localization support is crucial for ensuring that the SDK can be used across different languages and regions. The SDK must:
+
+Accept a LocalizationProvider as part of the BaseConfiguration.
+
+Use this provider to fetch localized strings dynamically.
+
+Ensure that all UI components and messages within the SDK support multi-language rendering.
+
+By following this approach, the SDK remains adaptable to various localization strategies implemented by different applications.
+
