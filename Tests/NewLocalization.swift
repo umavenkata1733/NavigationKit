@@ -381,3 +381,30 @@ class LocalizationManagerTests: XCTestCase {
         XCTAssertIdentical(lastCreatedService?.bundle, testBundle)
     }
 }
+
+func testLanguageDidChangeNotification() {
+    let expectation = self.expectation(description: "Language change should trigger an update")
+
+    // Initial language setup
+    localizationManager.updateLanguage(to: "en")
+    XCTAssertEqual(localizationManager.localized(HomeLocalizationKey.welcomeMessage), "Welcome")
+
+    // Observe the object change
+    let cancellable = localizationManager.objectWillChange.sink {
+        expectation.fulfill() // Expectation is fulfilled when language changes
+    }
+
+    // Post the system language change notification
+    NotificationCenter.default.post(name: NSLocale.currentLocaleDidChangeNotification, object: nil)
+
+    // Wait for expectation to be fulfilled
+    wait(for: [expectation], timeout: 1.0)
+    
+    // Ensure the language is updated
+    let newLanguageCode = Locale.preferredLanguages.first ?? "en"
+    let expectedTranslation = newLanguageCode == "fr" ? "Bienvenue" : "Welcome"
+    
+    XCTAssertEqual(localizationManager.localized(HomeLocalizationKey.welcomeMessage), expectedTranslation)
+
+    cancellable.cancel()
+}
