@@ -225,3 +225,159 @@ final class LocalizationTests: XCTestCase {
         XCTAssertEqual(localizationManager.localized(HomeLocalizationKey.welcomeMessage), "welcome_message")
     }
 }
+
+
+
+
+
+
+
+
+
+import XCTest
+@testable import YourModuleName // Replace with your actual module name
+
+class LocalizationManagerTests: XCTestCase {
+    
+    // Mock protocols and classes
+    protocol LocalizationServiceProtocol {
+        func localizedString(forKey key: String, tableName: String) -> String
+    }
+    
+    protocol LocalizationKeyProtocol {
+        var rawValue: String { get }
+        var tableName: String { get }
+    }
+    
+    class MockLocalizationService: LocalizationServiceProtocol {
+        let languageCode: String
+        let bundle: Bundle
+        var localizedStrings: [String: String] = [:]
+        
+        init(languageCode: String, bundle: Bundle) {
+            self.languageCode = languageCode
+            self.bundle = bundle
+        }
+        
+        func localizedString(forKey key: String, tableName: String) -> String {
+            return localizedStrings[key] ?? key
+        }
+    }
+    
+    enum MockLocalizationKey: String, LocalizationKeyProtocol {
+        case welcome = "welcome_key"
+        
+        var tableName: String {
+            return "MockTable"
+        }
+    }
+    
+    // Test properties
+    var testBundle: Bundle!
+    var mockFactory: ((String, Bundle) -> LocalizationServiceProtocol)!
+    var lastCreatedService: MockLocalizationService?
+    
+    override func setUp() {
+        super.setUp()
+        testBundle = Bundle(for: type(of: self))
+        
+        // Setup a factory that creates mock services and records the last one created
+        mockFactory = { [weak self] (languageCode, bundle) in
+            let service = MockLocalizationService(languageCode: languageCode, bundle: bundle)
+            self?.lastCreatedService = service
+            return service
+        }
+    }
+    
+    override func tearDown() {
+        testBundle = nil
+        mockFactory = nil
+        lastCreatedService = nil
+        super.tearDown()
+    }
+    
+    // MARK: - Initialization Tests
+    
+    func testInitWithExplicitLanguage() {
+        // Initialize with explicit language code
+        let manager = LocalizationManager(
+            serviceFactory: mockFactory,
+            initialLanguage: "fr",
+            bundle: testBundle
+        )
+        
+        // Verify the service was created with the correct parameters
+        XCTAssertEqual(lastCreatedService?.languageCode, "fr")
+        XCTAssertIdentical(lastCreatedService?.bundle, testBundle)
+        
+        // Verify the service was assigned to the manager
+        if let mockService = manager.service as? MockLocalizationService {
+            XCTAssertEqual(mockService.languageCode, "fr")
+            XCTAssertIdentical(mockService.bundle, testBundle)
+        } else {
+            XCTFail("Manager's service is not of expected type")
+        }
+    }
+    
+    func testInitWithDefaultLanguage() {
+        // Initialize without specifying language (should use system's preferred)
+        let expectedLanguage = Locale.preferredLanguages.first ?? "en"
+        
+        let manager = LocalizationManager(
+            serviceFactory: mockFactory,
+            bundle: testBundle
+        )
+        
+        // Verify the service was created with the expected language
+        XCTAssertEqual(lastCreatedService?.languageCode, expectedLanguage)
+        XCTAssertIdentical(lastCreatedService?.bundle, testBundle)
+    }
+    
+    func testInitRegistersForNotifications() {
+        // Keep a weak reference to avoid preventing deallocation
+        weak var weakManager: LocalizationManager?
+        
+        // Create in a scope to allow for deallocation
+        autoreleasepool {
+            let manager = LocalizationManager(
+                serviceFactory: mockFactory,
+                initialLanguage: "en",
+                bundle: testBundle
+            )
+            
+            weakManager = manager
+            
+            // Verify the observer was added (indirectly)
+            // Note: We can't directly test private properties like the observer
+            
+            // Simulate the notification to see if it triggers the observer
+            let oldService = lastCreatedService
+            NotificationCenter.default.post(name: NSLocale.currentLocaleDidChangeNotification, object: nil)
+            
+            // If the observer was correctly added, the service should have been recreated
+            XCTAssertNotIdentical(manager.service as AnyObject, oldService as AnyObject)
+        }
+        
+        // Verify manager is properly deallocated (which indirectly tests deinit and observer removal)
+        XCTAssertNil(weakManager, "Manager should be deallocated")
+    }
+    
+    func testFactoryIsStoredCorrectly() {
+        // Initialize the manager
+        let manager = LocalizationManager(
+            serviceFactory: mockFactory,
+            initialLanguage: "en",
+            bundle: testBundle
+        )
+        
+        // Clear the last created service
+        lastCreatedService = nil
+        
+        // Update the language which should use the stored factory
+        manager.updateLanguage(to: "es")
+        
+        // Verify the factory was called with the correct parameters
+        XCTAssertEqual(lastCreatedService?.languageCode, "es")
+        XCTAssertIdentical(lastCreatedService?.bundle, testBundle)
+    }
+}
