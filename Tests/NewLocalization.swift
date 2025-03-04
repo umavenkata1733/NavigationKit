@@ -456,3 +456,140 @@ struct ContentView: View {
     }
 }
 
+
+
+
+import XCTest
+@testable import YourModuleName  // Replace with your actual module name
+
+class BNCNetworkManagerTests: XCTestCase {
+    
+    var mockManager: BNCNetworkManager!
+    var mockAdapter: MockNetworkAdapter!
+    var mockService: MockBNCBenefitsBffService!
+    var mockEnvironment: MockBNCMobileServiceEnvironment!
+    
+    override func setUp() {
+        super.setUp()
+        mockAdapter = MockNetworkAdapter()
+        mockService = MockBNCBenefitsBffService()
+        mockEnvironment = MockBNCMobileServiceEnvironment()
+        mockManager = BNCNetworkManager(environment: mockEnvironment, bffService: mockService)
+    }
+    
+    override func tearDown() {
+        mockManager = nil
+        mockAdapter = nil
+        mockService = nil
+        mockEnvironment = nil
+        super.tearDown()
+    }
+    
+    /// Test successful request
+    func testSendRequest_Success() {
+        // Given
+        let mockData = MockResponse(id: 1, name: "Test")
+        let mockResponse = MockNetworkResponse(statusCode: 200, header: [:])
+        let mockRequest = MockNetworkRequest()
+        
+        mockAdapter.mockResult = .success(mockData, mockResponse, mockRequest)
+        
+        let expectation = self.expectation(description: "Success Case")
+        
+        // When
+        mockManager.sendRequest(endpoint: MockEndpoint.test, expecting: MockResponse.self) { result in
+            // Then
+            switch result {
+            case .success(let data, _, _):
+                XCTAssertEqual(data.id, 1)
+                XCTAssertEqual(data.name, "Test")
+                expectation.fulfill()
+            case .failure:
+                XCTFail("Expected success but got failure")
+            }
+        }
+        
+        waitForExpectations(timeout: 2, handler: nil)
+    }
+    
+    /// Test failure request
+    func testSendRequest_Failure() {
+        // Given
+        let mockError = NetworkError.timeout
+        let mockResponse = MockNetworkResponse(statusCode: 500, header: [:])
+        
+        mockAdapter.mockResult = .failure(mockError, mockResponse, nil)
+        
+        let expectation = self.expectation(description: "Failure Case")
+        
+        // When
+        mockManager.sendRequest(endpoint: MockEndpoint.test, expecting: MockResponse.self) { result in
+            // Then
+            switch result {
+            case .success:
+                XCTFail("Expected failure but got success")
+            case .failure(let error, _, _):
+                XCTAssertEqual(error, NetworkError.timeout)
+                expectation.fulfill()
+            }
+        }
+        
+        waitForExpectations(timeout: 2, handler: nil)
+    }
+}
+
+// MARK: - Mock Classes
+
+class MockNetworkAdapter: NetworkAdapter {
+    var mockResult: NetworkDecodedResult<MockResponse>?
+    
+    override func sendRequest<T: Decodable>(to endPoint: Endpoint, in environment: Environment, expecting: T.Type) async throws -> NetworkDecodedSuccess<T> {
+        guard let result = mockResult as? NetworkDecodedResult<T> else {
+            throw NetworkError.timeout
+        }
+        
+        switch result {
+        case .success(let data, let response, let request):
+            return NetworkDecodedSuccess(decoded: data, response: response, request: request)
+        case .failure(let error, _, _):
+            throw error
+        }
+    }
+}
+
+class MockNetworkResponse: NetwokResponse {
+    var statusCode: Int
+    var header: [String: String]
+    
+    init(statusCode: Int, header: [String: String]) {
+        self.statusCode = statusCode
+        self.header = header
+    }
+    
+    func localizedString(forStatusCode statusCode: Int) -> String {
+        return "Mock Status Code: \(statusCode)"
+    }
+}
+
+class MockNetworkRequest: NetworkRequest {
+    var url: URL? { return URL(string: "https://mockurl.com") }
+    var httpMethod: String? { return "GET" }
+    var allHttpHeaderFields: [String: String]? { return [:] }
+    var httpBody: Data? { return nil }
+    required init?(to endPoint: Endpoint, in environment: Environment, including body: Data?) {}
+}
+
+class MockBNCBenefitsBffService: BNCBenefitsBffService {
+    func getRequiredBffHeaders(for endPoint: BNCMobileEndpoint) -> [String: String] {
+        return ["Authorization": "Bearer MockToken"]
+    }
+    func validateResponse<T: Decodable>(for response: NetworkDecodedResult<T>) -> Bool {
+        return true
+    }
+}
+
+class MockBNCMobileServiceEnvironment: BNCMobileServiceEnvironment {
+    override init(baseURL: URL = URL(string: "https://mockapi.com")!) {
+        super.init(baseURL: baseURL)
+    }
+}
