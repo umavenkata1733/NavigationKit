@@ -408,3 +408,51 @@ func testLanguageDidChangeNotification() {
 
     cancellable.cancel()
 }
+
+
+
+import SwiftUI
+import YourLocalizationPackage // Replace with actual module name
+
+struct ContentView: View {
+    @StateObject private var localizationManager = LocalizationManager(
+        serviceFactory: { language, bundle in
+            JSONLocalizationService(languageCode: language, bundle: bundle)
+        },
+        bundle: Bundle.main
+    )
+    
+    var body: some View {
+        NavigationView {
+            VStack(spacing: 20) {
+                Text(localizationManager.localized(HomeLocalizationKey.welcomeMessage))
+                    .font(.largeTitle)
+                    .padding()
+
+                Text(localizationManager.localized(HomeLocalizationKey.homeTitle))
+                    .font(.title2)
+                    .foregroundColor(.gray)
+
+                Picker("Language", selection: Binding(
+                    get: { Locale.preferredLanguages.first ?? "en" },
+                    set: { localizationManager.updateLanguage(to: $0) }
+                )) {
+                    Text("English").tag("en")
+                    Text("French").tag("fr")
+                }
+                .pickerStyle(SegmentedPickerStyle())
+                .padding()
+
+                NavigationLink(destination: ProfileView(localizationManager: localizationManager)) {
+                    Text(localizationManager.localized(HomeLocalizationKey.homeTitle))
+                        .padding()
+                        .background(Color.blue)
+                        .foregroundColor(.white)
+                        .cornerRadius(10)
+                }
+            }
+            .navigationTitle(localizationManager.localized(HomeLocalizationKey.homeTitle))
+        }
+    }
+}
+
