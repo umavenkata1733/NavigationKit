@@ -608,3 +608,30 @@ class LocalizationManagerTests: XCTestCase {
 //        return LocalizationManager.shared.localizedString(forKey: self)
 //    }
 //}
+
+
+
+/// Test that the `LocalizationManager` is correctly initialized with the repository and language provider.
+func testInitialization() {
+    // Verify the initial state of the language manager.
+    XCTAssertEqual(localizationManager.currentLanguage, "en") // Based on the SystemLanguageProvider with "en"
+    
+    // Create a new instance of LocalizationManager and initialize with mock repository and language provider
+    let mockLanguageProvider = SystemLanguageProvider(preferredLanguage: "fr")
+    let mockDataSource = JSONLocalizationDataSource(bundle: Bundle(for: LocalizationManagerTests.self))
+    let mockRepository = LocalizationRepository(dataSource: mockDataSource)
+    localizationManager.initialize(repository: mockRepository, languageProvider: mockLanguageProvider)
+    
+    // Check the current language after initialization should be French ("fr")
+    XCTAssertEqual(localizationManager.currentLanguage, "fr")
+    
+    // Verify that the repository and language provider are using the updated language.
+    XCTAssertEqual(mockLanguageProvider.currentLanguageGet(), "fr")
+    XCTAssertEqual(localizationManager.localizedString(forKey: "hello_world"), "Bonjour le monde!") // Assuming "hello_world" is translated to French in the JSON file.
+    
+    // Test the initial language set by the system settings as fallback if no language provider is initialized.
+    let fallbackLanguageManager = LocalizationManager.shared
+    fallbackLanguageManager.initialize(repository: mockRepository, languageProvider: SystemLanguageProvider(preferredLanguage: "es"))
+    
+    XCTAssertEqual(fallbackLanguageManager.currentLanguage, "es")
+}
