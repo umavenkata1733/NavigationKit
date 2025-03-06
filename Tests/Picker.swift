@@ -186,6 +186,154 @@ public class SystemLanguageProvider: AppLanguageProvider {
     }
 }
 
+
+
+
+
+import XCTest
+import Combine
+@testable import MyLocalizationSDK
+
+class LocalizationManagerTests: XCTestCase {
+    var localizationManager: LocalizationManager!
+    var repository: LocalizationRepositoryProtocol!
+    var languageProvider: AppLanguageProvider!
+    var cancellables: Set<AnyCancellable>!
+
+    override func setUp() {
+        super.setUp()
+        cancellables = Set<AnyCancellable>()
+        
+        // Mock the data source (e.g., JSON file data source)
+        let dataSource = JSONLocalizationDataSource(bundle: Bundle(for: LocalizationManagerTests.self))
+        
+        // Create a repository using the mock data source
+        repository = LocalizationRepository(dataSource: dataSource)
+        
+        // Create a language provider with an initial language
+        languageProvider = SystemLanguageProvider(preferredLanguage: "en")
+        
+        // Initialize the LocalizationManager
+        localizationManager = LocalizationManager.shared
+        localizationManager.initialize(repository: repository, languageProvider: languageProvider)
+    }
+
+    override func tearDown() {
+        localizationManager = nil
+        repository = nil
+        languageProvider = nil
+        cancellables = nil
+        super.tearDown()
+    }
+
+    /// Test that the system language change is detected and handled properly.
+    func testSystemLanguageChange() {
+        // Initially, the language should be "en"
+        XCTAssertEqual(localizationManager.currentLanguage, "en")
+        
+        // Simulate a language change to Spanish
+        localizationManager.updateLanguage(to: "es")
+        
+        // Verify language is updated to Spanish
+        XCTAssertEqual(localizationManager.currentLanguage, "es")
+        
+        // Test that localized string is returned correctly in Spanish
+        let localizedString = localizationManager.localizedString(forKey: "hello_world")
+        XCTAssertEqual(localizedString, "¡Hola, Mundo!")
+        
+        // Simulate a system language change to English
+        localizationManager.updateLanguage(to: "en")
+        
+        // Verify language is updated to English
+        XCTAssertEqual(localizationManager.currentLanguage, "en")
+        
+        // Test that localized string is returned correctly in English
+        let localizedStringEn = localizationManager.localizedString(forKey: "hello_world")
+        XCTAssertEqual(localizedStringEn, "Hello, World!")
+    }
+
+    /// Test that localized strings are fetched correctly from the repository.
+    func testFetchLocalizedString() {
+        // Simulate language switch to Spanish
+        localizationManager.updateLanguage(to: "es")
+        
+        // Test fetching localized string in Spanish
+        let localizedString = localizationManager.localizedString(forKey: "hello_world")
+        XCTAssertEqual(localizedString, "¡Hola, Mundo!")
+        
+        // Switch back to English
+        localizationManager.updateLanguage(to: "en")
+        
+        // Test fetching localized string in English
+        let localizedStringEn = localizationManager.localizedString(forKey: "hello_world")
+        XCTAssertEqual(localizedStringEn, "Hello, World!")
+    }
+
+    /// Test that fetching a string returns the key if not found.
+    func testFetchLocalizedStringNotFound() {
+        // Simulate a language switch to Spanish
+        localizationManager.updateLanguage(to: "es")
+        
+        // Test that missing key returns the key itself
+        let localizedString = localizationManager.localizedString(forKey: "non_existing_key")
+        XCTAssertEqual(localizedString, "non_existing_key")
+    }
+
+    /// Test language provider correctly updates and returns the language.
+    func testLanguageProvider() {
+        // Initially, the provider should return the preferred language "en"
+        XCTAssertEqual(languageProvider.currentLanguageGet(), "en")
+        
+        // Change language to Spanish
+        languageProvider.updateLanguage(to: "es")
+        
+        // Verify the language is updated to Spanish
+        XCTAssertEqual(languageProvider.currentLanguageGet(), "es")
+    }
+
+    /// Test that the repository fetches the correct language string based on language changes.
+    func testRepositoryUpdate() {
+        // Initially, it should return the English string.
+        let initialString = repository.fetchLocalizedString(forKey: "hello_world")
+        XCTAssertEqual(initialString, "Hello, World!")
+        
+        // Change language to Spanish
+        repository.updateLanguage(to: "es")
+        
+        // Fetch the string in Spanish
+        let spanishString = repository.fetchLocalizedString(forKey: "hello_world")
+        XCTAssertEqual(spanishString, "¡Hola, Mundo!")
+    }
+
+    /// Test system notification listener when system language changes.
+    func testSystemLanguageNotificationListener() {
+        let expectation = XCTestExpectation(description: "LocalizationManager listens to system language change.")
+
+        // Simulate a language change notification
+        NotificationCenter.default.post(name: NSLocale.currentLocaleDidChangeNotification, object: nil)
+        
+        // Add observer for language change
+        NotificationCenter.default.publisher(for: NSLocale.currentLocaleDidChangeNotification)
+            .sink { _ in
+                XCTAssertEqual(self.localizationManager.currentLanguage, Locale.preferredLanguages.first ?? "en")
+                expectation.fulfill()
+            }
+            .store(in: &cancellables)
+        
+        // Wait for the notification to be processed
+        wait(for: [expectation], timeout: 2.0)
+    }
+
+    /// Test that the localization manager doesn't return `nil` for missing localization key
+    func testMissingLocalizationKey() {
+        let missingKey = localizationManager.localizedString(forKey: "non_existent_key")
+        
+        // If the key doesn't exist, it should return the key itself
+        XCTAssertEqual(missingKey, "non_existent_key")
+    }
+}
+
+
 //import SwiftUI
 //
 ///// A sample localized view that displays a string from the localization manager.
