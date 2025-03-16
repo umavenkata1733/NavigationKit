@@ -1,12 +1,49 @@
-import XCTest
-@testable import NavigationKit
+import SwiftUI
+import SelectionViewKit
 
-final class NavigationKitTests: XCTestCase {
-    func testExample() throws {
-        // XCTest Documentation
-        // https://developer.apple.com/documentation/xctest
+struct ContentView: View {
+    private let delegate = SelectionDelegateImpl()
 
-        // Defining Test Cases and Test Methods
-        // https://developer.apple.com/documentation/xctest/defining_test_cases_and_test_methods
+    private let items = [
+        ExampleItem(name: "Ramuvb Mahesh"),
+        ExampleItem(name: "Team Alpha"),
+        ExampleItem(name: "Division Beta")
+    ]
+    var body: some View {
+        VStack {
+            NavigationStack {
+                ScrollView {
+                    VStack(spacing: 20) {
+                        // Full screen example
+                        SelectionView(
+                            title: "Full Screen Demo",
+                            items: items,
+                            presentationType: .full,
+                            delegate: delegate
+                        )
+                        
+                    }
+                }
+            }
+        }
+        .padding()
     }
 }
+struct ExampleItem: Selectable {
+    let id = UUID()
+    let name: String
+    var displayText: String { name }
+}
+
+// Demo/Domain/Delegates/SelectionDelegateImpl.swift
+
+final class SelectionDelegateImpl: SelectionDelegate {
+    typealias Item = ExampleItem
+    
+    func didSelect(item: ExampleItem?) {
+        if let item = item {
+            print("Selected: \(item.name)")
+        }
+    }
+}
+
