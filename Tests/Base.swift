@@ -1027,14 +1027,18 @@ struct CleanBannerIntegrationExample: View {
                                 // First item (Medical Cost)
                                 
                                 if let medicalCost = costEstimators.first(where: { $0.id == "medical-cost" }) {
-                                    CostEstimatorItemView(item: medicalCost, onTap: { item in
-                                        print("Medical cost tapped: \(item.id)")
-                                    }, styleConfig: BannerStyleConfiguration(
-                                        primaryColor: .blue,
-                                        secondaryColor: .gray,
-                                        backgroundColor: .white,
-                                        cornerRadius: 16
-                                    ))
+                                    BannerView(
+                                        item: medicalCost,
+                                        styleConfig: BannerStyleConfiguration(
+                                            primaryColor: .blue,
+                                            secondaryColor: .gray,
+                                            backgroundColor: .white,
+                                            cornerRadius: 16
+                                        )
+                                    ) { item in
+                                        print("medical banner tapped: \(item.id)")
+                                    }
+                                    .padding(.horizontal)
                                 }
                                 
                                 // Separator line
@@ -1044,14 +1048,18 @@ struct CleanBannerIntegrationExample: View {
                                 
                                 // Second item (Drug Cost)
                                 if let drugCost = costEstimators.first(where: { $0.id == "drug-cost" }) {
-                                    CostEstimatorItemView(item: drugCost, onTap:  { item in
-                                        print("Drug cost tapped: \(item.id)")
-                                    }, styleConfig: BannerStyleConfiguration(
-                                        primaryColor: .blue,
-                                        secondaryColor: .gray,
-                                        backgroundColor: .white,
-                                        cornerRadius: 16
-                                    ))
+                                    BannerView(
+                                        item: drugCost,
+                                        styleConfig: BannerStyleConfiguration(
+                                            primaryColor: .blue,
+                                            secondaryColor: .gray,
+                                            backgroundColor: .white,
+                                            cornerRadius: 16
+                                        )
+                                    ) { item in
+                                        print("drugCost banner tapped: \(item.id)")
+                                    }
+                                    .padding(.horizontal)
                                 }
                             }
                             .background(Color.white)
