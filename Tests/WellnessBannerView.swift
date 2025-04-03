@@ -70,12 +70,13 @@ struct SmartImage: View {
                     // Render placeholder while image is loading
                     placeholderView()
                         .onAppear {
-                            // Attempt to load from cache, or fetch from network if not cached
-                            if let cachedImage = ImageCacheManager.shared.cachedImage(forKey: urlString) {
-                                self.image = cachedImage
-                                fadeIn()
-                            } else {
-                                loadRemoteImage(urlString: urlString)
+                            Task {
+                                if let cachedImage = await ImageCacheManager.shared.cachedImage(forKey: urlString) {
+                                    self.image = cachedImage
+                                    fadeIn()
+                                } else {
+                                    await loadRemoteImage(urlString: urlString)
+                                }
                             }
                         }
                         .onDisappear {
@@ -95,36 +96,28 @@ struct SmartImage: View {
     }
     
     // Load a remote image from the provided URL.
-    private func loadRemoteImage(urlString: String) {
+    private func loadRemoteImage(urlString: String) async {
         guard let url = URL(string: urlString) else {
-            didError = true // Handle invalid URL
+            await MainActor.run { self.didError = true }
             return
         }
-        
-        isLoading = true
-        
-        // Start loading the remote image via a network request
-        cancellable = URLSession.shared.dataTaskPublisher(for: url)
-            .map { UIImage(data: $0.data) } // Convert response data to UIImage
-            .replaceError(with: nil) // Handle errors gracefully by returning nil
-            .receive(on: DispatchQueue.main) // Ensure UI updates on the main thread
-            .handleEvents(receiveSubscription: { _ in
-                isLoading = true
-            }, receiveCompletion: { _ in
-                isLoading = false
-            }, receiveCancel: {
-                isLoading = false
-            })
-            .sink { [self] image in
-                if let image = image {
+
+        do {
+            let (data, _) = try await URLSession.shared.data(from: url)
+            if let image = UIImage(data: data) {
+                await MainActor.run {
                     self.image = image
-                    ImageCacheManager.shared.saveImage(image, forKey: urlString) // Cache the image
                     fadeIn()
-                } else {
-                    didError = true // If no image, show error state
                 }
+                await ImageCacheManager.shared.saveImage(image, forKey: urlString)
+            } else {
+                await MainActor.run { self.didError = true }
             }
+        } catch {
+            await MainActor.run { self.didError = true }
+        }
     }
+
     
     // View for displaying the placeholder during loading state.
     @ViewBuilder
@@ -202,26 +195,21 @@ extension SmartImage {
 // MARK: - Image Cache
 
 // ImageCacheManager - A singleton cache manager for caching images in memory.
-class ImageCacheManager {
+actor ImageCacheManager {
     static let shared = ImageCacheManager()
     private let cache = NSCache<NSString, UIImage>()
     
     private init() {}
     
-    // Retrieve a cached image by its key.
-    func cachedImage(forKey key: String) -> UIImage? {
+    func cachedImage(forKey key: String) async -> UIImage? {
         return cache.object(forKey: key as NSString)
     }
     
-    // Save an image in the cache with the provided key.
-    func saveImage(_ image: UIImage, forKey key: String) {
+    func saveImage(_ image: UIImage, forKey key: String) async {
         cache.setObject(image, forKey: key as NSString)
     }
     
-    // Clear all cached images.
-    func clearCache() {
+    func clearCache() async {
         cache.removeAllObjects()
     }
 }
-
-
