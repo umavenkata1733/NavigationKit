@@ -1,13 +1,6 @@
-//
-//  AsyncImageTests.swift
-//  AsyncImageTests
-//
-//  Created by Anand on 4/2/25.
-//
 import XCTest
 import SwiftUI
 import Combine
-@testable import AsyncImage // Replace with actual module name
 
 @MainActor
 final class SmartImageTests: XCTestCase {
@@ -234,5 +227,14 @@ final class SmartImageModifiersTests: XCTestCase {
         XCTAssertNil(originalProps.width)
         XCTAssertNil(originalProps.height)
     }
+    
+    @MainActor
+    func testLoadRemoteImageWithInvalidURL() {
+        let viewModel = SmartImageViewModel()
+        viewModel.loadRemoteImage(from: "invalid-url")
+        XCTAssertFalse(viewModel.isLoading)
+    }
+
 }
+
 
