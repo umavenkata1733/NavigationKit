@@ -1,298 +1,13 @@
-import SwiftUI
-import Combine
-
-/// ViewModel for handling the loading of remote images, with caching support.
-@MainActor
-class SmartImageViewModel: ObservableObject {
-    
-    // MARK: - Published Properties
-    
-    /// The image to be displayed.
-    @Published var image: UIImage?
-    
-    /// Boolean indicating if the image is being loaded.
-    @Published var isLoading = false
-    
-    /// Boolean indicating if an error occurred while loading the image.
-    @Published var didError = false
-    
-    // MARK: - Private Properties
-    
-    /// A cancellable to manage the network request's lifecycle.
-    private var cancellable: AnyCancellable?
-    
-    /// Load a remote image from the given URL, with caching.
-    ///
-    /// - Parameter urlString: The URL of the image to load.
-    func loadRemoteImage(from urlString: String) {
-        guard let url = URL(string: urlString) else {
-            // If the URL is invalid, set the error flag
-            didError = true
-            return
-        }
-
-        Task {
-            // Check if the image is cached
-            if let cachedImage = await ImageCacheManager.shared.cachedImage(forKey: urlString) {
-                // If cached, use the cached image
-                image = cachedImage
-                return
-            }
-
-            // Start loading
-            isLoading = true
-
-            // Start the network request to fetch the image
-            cancellable = URLSession.shared.dataTaskPublisher(for: url)
-                .map { $0.data }
-                .tryMap { data -> UIImage in
-                    guard let image = UIImage(data: data) else {
-                        // Throw error if the image data is invalid
-                        throw URLError(.badServerResponse)
-                    }
-                    return image
-                }
-                .receive(on: DispatchQueue.main) // Switch to the main thread for UI updates
-                .sink(receiveCompletion: { [weak self] completion in
-                    switch completion {
-                    case .failure:
-                        // If failed, set error flag
-                        self?.didError = true
-                    case .finished:
-                        break
-                    }
-                    // End the loading process
-                    self?.isLoading = false
-                }, receiveValue: { [weak self] image in
-                    // Save the fetched image and update UI
-                    self?.image = image
-                    // Cache the image asynchronously
-                    Task {
-                        await ImageCacheManager.shared.saveImage(image, forKey: urlString)
-                    }
-                })
-        }
-    }
-}
-
-/// Singleton actor class for managing an in-memory image cache.
-actor ImageCacheManager {
-    static let shared = ImageCacheManager()
-    
-    /// The in-memory cache for storing images.
-    private let cache = NSCache<NSString, UIImage>()
-    
-    private init() {}
-    
-    /// Retrieve a cached image for the given key.
-    ///
-    /// - Parameter key: The key to retrieve the cached image.
-    /// - Returns: The cached image, or `nil` if not found.
-    func cachedImage(forKey key: String) async -> UIImage? {
-        return cache.object(forKey: key as NSString)
-    }
-    
-    /// Save an image to the cache with a given key.
-    ///
-    /// - Parameters:
-    ///   - image: The image to save.
-    ///   - key: The key associated with the image.
-    func saveImage(_ image: UIImage, forKey key: String) async {
-        cache.setObject(image, forKey: key as NSString)
-    }
-    
-    /// Clear all cached images.
-    func clearCache() async {
-        cache.removeAllObjects()
-    }
-}
-
-/// SmartImage is a SwiftUI view that can display images from various sources (local, system, or remote).
-struct SmartImage: View {
-    
-    // MARK: - Enum
-    
-    /// Defines the source of the image (local, remote, system).
-    enum Source {
-        case local(String)    // Local image asset name
-        case remote(String)   // Remote image URL
-        case system(String)   // System image (SF Symbols)
-    }
-    
-    // MARK: - Properties
-    
-    /// The source of the image.
-    let source: Source
-    
-    /// The placeholder image shown while the image is loading.
-    var placeholder: String?
-    
-    /// The error image shown when the image fails to load.
-    var errorImage: String?
-    
-    /// The content mode for resizing the image (fit, fill).
-    var contentMode: ContentMode = .fit
-    
-    /// The width of the image.
-    var width: CGFloat?
-    
-    /// The height of the image.
-    var height: CGFloat?
-    
-    /// The animation to use when the image fades in.
-    var animation: Animation = .easeIn(duration: 0.3)
-    
-    // MARK: - State
-    
-    /// The view model for loading and managing the image.
-    @StateObject private var viewModel = SmartImageViewModel()
-    
-    /// The opacity of the image (used for fade-in effect).
-    @State private var opacity: Double = 0
-    
-    // MARK: - Initializer
-    
-    init(source: Source) {
-        self.source = source
-    }
-    
-    // MARK: - Body
-    
-    var body: some View {
-        Group {
-            switch source {
-            case .local(let name):
-                // Display local image
-                Image(name)
-                    .resizable()
-                    .aspectRatio(contentMode: contentMode)
-                    .frame(width: width, height: height)
-                    .opacity(opacity)
-                    .onAppear { fadeIn() }
-                
-            case .system(let name):
-                // Display system (SF Symbol) image
-                Image(systemName: name)
-                    .resizable()
-                    .aspectRatio(contentMode: contentMode)
-                    .frame(width: width, height: height)
-                    .opacity(opacity)
-                    .onAppear { fadeIn() }
-                
-            case .remote(let urlString):
-                // Handle remote image loading
-                if let image = viewModel.image {
-                    Image(uiImage: image)
-                        .resizable()
-                        .aspectRatio(contentMode: contentMode)
-                        .frame(width: width, height: height)
-                        .opacity(opacity)
-                        .onAppear { fadeIn() }
-                } else if viewModel.didError {
-                    errorView()
-                } else {
-                    placeholderView()
-                        .onAppear {
-                            viewModel.loadRemoteImage(from: urlString)
-                        }
-                }
-            }
-        }
-        .frame(width: width, height: height)
-    }
-    
-    // MARK: - Private Functions
-    
-    /// Fade in the image with the specified animation.
-    private func fadeIn() {
-        withAnimation(animation) {
-            opacity = 1
-        }
-    }
-    
-    /// A view that shows a placeholder image or loading spinner while the image is being loaded.
-    @ViewBuilder
-    private func placeholderView() -> some View {
-        if viewModel.isLoading {
-            ProgressView() // Show a loading spinner
-        } else if let placeholder = placeholder {
-            Image(placeholder)
-                .resizable()
-                .aspectRatio(contentMode: contentMode)
-        } else {
-            ProgressView() // Show a loading spinner by default
-        }
-    }
-    
-    /// A view that shows an error image or message if the image fails to load.
-    @ViewBuilder
-    private func errorView() -> some View {
-        if let errorImage = errorImage {
-            Image(errorImage)
-                .resizable()
-                .aspectRatio(contentMode: contentMode)
-        } else {
-            VStack {
-                Image(systemName: "xmark.octagon.fill") // Error icon
-                    .resizable()
-                    .scaledToFit()
-                    .frame(width: 40, height: 40)
-                    .foregroundColor(.red)
-                Text("Image Not Available") // Error message
-                    .font(.caption)
-                    .foregroundColor(.gray)
-            }
-        }
-    }
-}
-
-// MARK: - Extensions for Modifiers
-
-extension SmartImage {
-    
-    /// Set a placeholder image to show while the remote image is loading.
-    func placeholder(_ name: String) -> SmartImage {
-        var copy = self
-        copy.placeholder = name
-        return copy
-    }
-    
-    /// Set an error image to show when the image fails to load.
-    func errorImage(_ name: String) -> SmartImage {
-        var copy = self
-        copy.errorImage = name
-        return copy
-    }
-    
-    /// Set the content mode for how the image should be resized.
-    func contentMode(_ mode: ContentMode) -> SmartImage {
-        var copy = self
-        copy.contentMode = mode
-        return copy
-    }
-    
-    /// Set the width and height for the image.
-    func frame(width: CGFloat? = nil, height: CGFloat? = nil) -> SmartImage {
-        var copy = self
-        copy.width = width
-        copy.height = height
-        return copy
-    }
-    
-    /// Set a custom fade-in animation for the image.
-    func fadeAnimation(_ animation: Animation) -> SmartImage {
-        var copy = self
-        copy.animation = animation
-        return copy
-    }
-}
-
-
-
+//
+//  AsyncImageTests.swift
+//  AsyncImageTests
+//
+//  Created by Anand on 4/2/25.
+//
 import XCTest
 import SwiftUI
 import Combine
-@testable import  // Replace with actual module name
+@testable import AsyncImage // Replace with actual module name
 
 @MainActor
 final class SmartImageTests: XCTestCase {
@@ -364,3 +79,160 @@ final class SmartImageTests: XCTestCase {
         await fulfillment(of: [expectation], timeout: 5.0)
     }
 }
+
+
+// Define a testable version of SmartImage for better unit testing
+extension SmartImage {
+    // Helper method to expose property values for testing
+    func testProperties() -> (
+        placeholder: String?,
+        errorImage: String?,
+        contentMode: ContentMode,
+        width: CGFloat?,
+        height: CGFloat?,
+        animation: Animation
+    ) {
+        return (
+            placeholder: self.placeholder,
+            errorImage: self.errorImage,
+            contentMode: self.contentMode,
+            width: self.width,
+            height: self.height,
+            animation: self.animation
+        )
+    }
+}
+
+final class SmartImageModifiersTests: XCTestCase {
+    
+    // Base SmartImage instances for different source types
+    var remoteImage: SmartImage!
+    var localImage: SmartImage!
+    var systemImage: SmartImage!
+    
+    override func setUp() {
+        super.setUp()
+        remoteImage = SmartImage(source: .remote("https://example.com/image.jpg"))
+        localImage = SmartImage(source: .local("test_local_image"))
+        systemImage = SmartImage(source: .system("star.fill"))
+    }
+    
+    override func tearDown() {
+        remoteImage = nil
+        localImage = nil
+        systemImage = nil
+        super.tearDown()
+    }
+    
+    // Test SmartImage initialization with different source types
+    func testInitialization() {
+        // Test remote source
+        switch remoteImage.source {
+        case .remote(let urlString):
+            XCTAssertEqual(urlString, "https://example.com/image.jpg")
+        default:
+            XCTFail("Expected remote source")
+        }
+        
+        // Test local source
+        switch localImage.source {
+        case .local(let name):
+            XCTAssertEqual(name, "test_local_image")
+        default:
+            XCTFail("Expected local source")
+        }
+        
+        // Test system source
+        switch systemImage.source {
+        case .system(let name):
+            XCTAssertEqual(name, "star.fill")
+        default:
+            XCTFail("Expected system source")
+        }
+    }
+    
+    // Test the placeholder modifier
+    func testPlaceholderModifier() {
+        // Apply the placeholder modifier
+        let modifiedImage = remoteImage.placeholder("test_placeholder")
+        
+        // Get properties for testing
+        let props = modifiedImage.testProperties()
+        
+        // Verify the placeholder property was updated
+        XCTAssertEqual(props.placeholder, "test_placeholder")
+        
+        // Verify other properties remain unchanged
+        XCTAssertNil(props.errorImage)
+        XCTAssertEqual(props.contentMode, .fit)
+        XCTAssertNil(props.width)
+        XCTAssertNil(props.height)
+    }
+    
+    // Test the errorImage modifier
+    func testErrorImageModifier() {
+        // Apply the errorImage modifier
+        let modifiedImage = remoteImage.errorImage("test_error_image")
+        
+        // Get properties for testing
+        let props = modifiedImage.testProperties()
+        
+        // Verify the errorImage property was updated
+        XCTAssertEqual(props.errorImage, "test_error_image")
+        
+        // Verify other properties remain unchanged
+        XCTAssertNil(props.placeholder)
+        XCTAssertEqual(props.contentMode, .fit)
+        XCTAssertNil(props.width)
+        XCTAssertNil(props.height)
+    }
+    
+    // Test the contentMode modifier
+    func testContentModeModifier() {
+        // Apply the contentMode modifier
+        let modifiedImage = remoteImage.contentMode(.fill)
+        
+        // Get properties for testing
+        let props = modifiedImage.testProperties()
+        
+        // Verify the contentMode property was updated
+        XCTAssertEqual(props.contentMode, .fill)
+        
+        // Verify other properties remain unchanged
+        XCTAssertNil(props.placeholder)
+        XCTAssertNil(props.errorImage)
+        XCTAssertNil(props.width)
+        XCTAssertNil(props.height)
+    }
+    
+    
+    // Test chaining multiple modifiers
+    func testChainedModifiers() {
+        // Apply multiple modifiers in chain
+        let modifiedImage = remoteImage
+            .placeholder("test_placeholder")
+            .errorImage("test_error_image")
+            .contentMode(.fill)
+            .frame(width: 200, height: 300)
+            .fadeAnimation(Animation.linear(duration: 1.0))
+        
+        // Get properties for testing
+        let props = modifiedImage.testProperties()
+        
+        // Verify all properties were updated correctly
+        XCTAssertEqual(props.placeholder, "test_placeholder")
+        XCTAssertEqual(props.errorImage, "test_error_image")
+        XCTAssertEqual(props.contentMode, .fill)
+        XCTAssertEqual(props.width, 200)
+        XCTAssertEqual(props.height, 300)
+        
+        // Verify the original image wasn't modified
+        let originalProps = remoteImage.testProperties()
+        XCTAssertNil(originalProps.placeholder)
+        XCTAssertNil(originalProps.errorImage)
+        XCTAssertEqual(originalProps.contentMode, .fit)
+        XCTAssertNil(originalProps.width)
+        XCTAssertNil(originalProps.height)
+    }
+}
+
