@@ -1,132 +1,134 @@
-
-
-// Tests/SelectionKitUITests/z.swift
 import XCTest
-import SwiftUI
-@testable import SelectionViewKit
+import Combine
+@testable import YourModuleName
 
-struct TestItem: Selectable {
-    let id = UUID()
-    let displayText: String
+// Dummy model for BannerItem
+struct BannerItem: Equatable {
+    let id: Int
+    let title: String
 }
 
-final class SelectionViewUITests: XCTestCase {
-    @MainActor
-    func testSelectionView_DisplaysInitialState() async throws {
-        // Given
-        let items = [
-            TestItem(displayText: "Test 1"),
-            TestItem(displayText: "Test 2")
-        ]
-        
-        let view = SelectionView(
-            title: "Test Selection",
-            items: items,
-            presentationType: .half
-        )
-        
-        // When
-        let window = UIWindow(frame: CGRect(x: 0, y: 0, width: 400, height: 800))
-        let hostingController = UIHostingController(rootView: view)
-        window.rootViewController = hostingController
-        window.makeKeyAndVisible()
-        
-        // Then
-        // Wait for view to appear
-        try await Task.sleep(for: .milliseconds(100))
-        
-        XCTAssertNotNil(hostingController.view)
-        let snapshot = hostingController.view.snapshotView(afterScreenUpdates: true)
-        XCTAssertNotNil(snapshot)
-    }
-}
-
-final class SelectionHeaderViewUITests: XCTestCase {
-    @MainActor
-    func testSelectionHeaderView_DisplaysCorrectly() async throws {
-        // Given
-        let items = [TestItem(displayText: "Test Item")]
-        let repository = SelectionRepository(items: items)
-        let useCase = SelectionUseCase(repository: repository)
-        let viewModel = SelectionViewModel(useCase: useCase)
-        let style = SelectionPresentationType.half.style
-        
-        let view = SelectionHeaderView(
-            viewModel: viewModel,
-            style: style
-        )
-        
-        // When
-        let window = UIWindow(frame: CGRect(x: 0, y: 0, width: 400, height: 800))
-        let hostingController = UIHostingController(rootView: view)
-        window.rootViewController = hostingController
-        window.makeKeyAndVisible()
-        
-        // Then
-        try await Task.sleep(for: .milliseconds(100))
-        
-        XCTAssertNotNil(hostingController.view)
-        let snapshot = hostingController.view.snapshotView(afterScreenUpdates: true)
-        XCTAssertNotNil(snapshot)
-    }
-}
-
-final class SelectionListViewUITests: XCTestCase {
-    @MainActor
-    func testSelectionListView_DisplaysItems() async throws {
-        // Given
-        let items = [
-            TestItem(displayText: "Test 1"),
-            TestItem(displayText: "Test 2")
-        ]
-        
-        let view = SelectionListView(
-            items: items,
-            selectedItem: nil,
-            style: SelectionPresentationType.half.style,
-            onSelect: { _ in }
-        )
-        
-        // When
-        let window = UIWindow(frame: CGRect(x: 0, y: 0, width: 400, height: 800))
-        let hostingController = UIHostingController(rootView: view)
-        window.rootViewController = hostingController
-        window.makeKeyAndVisible()
-        
-        // Then
-        try await Task.sleep(for: .milliseconds(100))
-        
-        XCTAssertNotNil(hostingController.view)
-        let snapshot = hostingController.view.snapshotView(afterScreenUpdates: true)
-        XCTAssertNotNil(snapshot)
+// Mock BannerService
+class MockBannerService: BannerService {
+    var banners: [BannerItem] = []
+    var shouldThrowOnLoad = false
+    
+    func getAllBanners() -> [BannerItem] {
+        return banners
     }
     
-    @MainActor
-    func testSelectionListView_ShowsCheckmark_ForSelectedItem() async throws {
-        // Given
-        let items = [
-            TestItem(displayText: "Test 1"),
-            TestItem(displayText: "Test 2")
-        ]
-        
-        let view = SelectionListView(
-            items: items,
-            selectedItem: items[0],
-            style: SelectionPresentationType.half.style,
-            onSelect: { _ in }
-        )
-        
-        // When
-        let window = UIWindow(frame: CGRect(x: 0, y: 0, width: 400, height: 800))
-        let hostingController = UIHostingController(rootView: view)
-        window.rootViewController = hostingController
-        window.makeKeyAndVisible()
-        
-        // Then
-        try await Task.sleep(for: .milliseconds(100))
-        
-        XCTAssertNotNil(hostingController.view)
-        let snapshot = hostingController.view.snapshotView(afterScreenUpdates: true)
-        XCTAssertNotNil(snapshot)
+    func loadFromJSONString(_ jsonString: String) throws {
+        if shouldThrowOnLoad {
+            throw NSError(domain: "MockError", code: 1, userInfo: nil)
+        }
+        // Simulate successful parse
     }
 }
+
+// Dummy model for BannerItem
+struct BannerItem: Equatable {
+    let id: Int
+    let title: String
+}
+
+// Mock BannerService
+class MockBannerService: BannerService {
+    var banners: [BannerItem] = []
+    var shouldThrowOnLoad = false
+    
+    func getAllBanners() -> [BannerItem] {
+        return banners
+    }
+    
+    func loadFromJSONString(_ jsonString: String) throws {
+        if shouldThrowOnLoad {
+            throw NSError(domain: "MockError", code: 1, userInfo: nil)
+        }
+        // Simulate successful parse
+    }
+}
+
+
+
+final class DefaultBannerUseCasesTests: XCTestCase {
+    
+    var mockService: MockBannerService!
+    var useCases: DefaultBannerUseCases!
+    var cancellables: Set<AnyCancellable>!
+
+    override func setUp() {
+        super.setUp()
+        mockService = MockBannerService()
+        useCases = DefaultBannerUseCases(bannerService: mockService)
+        cancellables = []
+    }
+    
+    override func tearDown() {
+        mockService = nil
+        useCases = nil
+        cancellables = nil
+        super.tearDown()
+    }
+    
+    func testGetAllBannersReturnsCorrectItems() {
+        // Arrange
+        let expectedBanners = [
+            BannerItem(id: 1, title: "First"),
+            BannerItem(id: 2, title: "Second")
+        ]
+        mockService.banners = expectedBanners
+        
+        // Act & Assert
+        let expectation = self.expectation(description: "getAllBanners")
+        
+        useCases.getAllBanners()
+            .sink(receiveCompletion: { _ in },
+                  receiveValue: { banners in
+                XCTAssertEqual(banners, expectedBanners)
+                expectation.fulfill()
+            })
+            .store(in: &cancellables)
+        
+        waitForExpectations(timeout: 1)
+    }
+
+    func testLoadBannersFromJSONStringSuccess() {
+        // Act & Assert
+        let expectation = self.expectation(description: "loadBannersSuccess")
+        
+        useCases.loadBannersFromJSONString("{\"valid\": true}")
+            .sink(receiveCompletion: { completion in
+                if case .failure = completion {
+                    XCTFail("Expected success but got failure")
+                }
+            }, receiveValue: {
+                expectation.fulfill()
+            })
+            .store(in: &cancellables)
+        
+        waitForExpectations(timeout: 1)
+    }
+
+    func testLoadBannersFromJSONStringFailure() {
+        // Arrange
+        mockService.shouldThrowOnLoad = true
+        
+        let expectation = self.expectation(description: "loadBannersFailure")
+        
+        // Act
+        useCases.loadBannersFromJSONString("{\"invalid\": true}")
+            .sink(receiveCompletion: { completion in
+                if case .failure = completion {
+                    expectation.fulfill()
+                } else {
+                    XCTFail("Expected failure but got success")
+                }
+            }, receiveValue: {
+                XCTFail("Expected failure but got value")
+            })
+            .store(in: &cancellables)
+        
+        waitForExpectations(timeout: 1)
+    }
+}
+
