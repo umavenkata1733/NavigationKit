@@ -6,11 +6,11 @@ struct PlanOption: Identifiable, Hashable {
     let name: String
 }
 
-// Reusable custom picker component that uses sheets
+// Reusable custom picker component that uses sheets and handles optional values
 struct SheetPicker<T: Identifiable & Hashable>: View {
     let title: String
     let options: [T]
-    @Binding var selectedOption: T
+    @Binding var selectedOption: T?
     let displayString: (T) -> String
     
     @State private var isSheetPresented: Bool = false
@@ -25,7 +25,7 @@ struct SheetPicker<T: Identifiable & Hashable>: View {
                     isSheetPresented = true
                 }) {
                     HStack {
-                        Text(displayString(selectedOption))
+                        Text(selectedOption.map(displayString) ?? "Select an option")
                             .foregroundColor(.white)
                             .padding(.leading, 16)
                         
@@ -55,15 +55,42 @@ struct SheetPicker<T: Identifiable & Hashable>: View {
     }
 }
 
-// Sheet view for displaying options
+// Sheet view for displaying options without NavigationView
 struct OptionsSheetView<T: Identifiable & Hashable>: View {
     let options: [T]
-    @Binding var selectedOption: T
+    @Binding var selectedOption: T?
     let displayString: (T) -> String
     @Binding var isPresented: Bool
     
     var body: some View {
-        NavigationView {
+        VStack {
+            // Custom header
+            HStack {
+                Button("Cancel") {
+                    isPresented = false
+                }
+                .padding()
+                
+                Spacer()
+                
+                Text("Select an Option")
+                    .font(.headline)
+                
+                Spacer()
+                
+                // Empty view to balance the layout
+                Button("") {
+                    // Empty action
+                }
+                .opacity(0)
+                .padding()
+            }
+            .padding(.top, 8)
+            
+            // Divider below header
+            Divider()
+            
+            // List of options
             List {
                 ForEach(options) { option in
                     Button(action: {
@@ -76,24 +103,12 @@ struct OptionsSheetView<T: Identifiable & Hashable>: View {
                             
                             Spacer()
                             
-                            if option.id == selectedOption.id {
+                            if selectedOption?.id == option.id {
                                 Image(systemName: "checkmark")
                                     .foregroundColor(.blue)
                             }
                         }
                     }
-                }
-            }
-            .toolbar {
-                ToolbarItem(placement: .navigationBarLeading) {
-                    Button("Cancel") {
-                        isPresented = false
-                    }
-                }
-                
-                ToolbarItem(placement: .principal) {
-                    Text("Select an Option")
-                        .font(.headline)
                 }
             }
         }
@@ -112,48 +127,13 @@ struct ContentView: View {
                 ProgressView()
                     .padding()
             } else {
-                if let selected = selectedPlan {
-                    SheetPicker(
-                        title: "Select plan type:",
-                        options: planOptions,
-                        selectedOption: $selectedPlan.unwrapped(),
-                        displayString: { $0.name }
-                    )
-                    .padding()
-                } else {
-                    // Show a placeholder when no data is loaded yet
-                    HStack {
-                        VStack(alignment: .leading, spacing: 8) {
-                            Text("Select plan type:")
-                                .foregroundColor(.secondary)
-                            
-                            HStack {
-                                Button(action: {
-                                    fetchPlans()
-                                }) {
-                                    HStack {
-                                        Text("Select a plan")
-                                            .foregroundColor(.white)
-                                            .padding(.leading, 16)
-                                        
-                                        Image(systemName: "chevron.down")
-                                            .foregroundColor(.white)
-                                            .padding(.trailing, 16)
-                                    }
-                                    .padding(.vertical, 12)
-                                    .background(
-                                        RoundedRectangle(cornerRadius: 20)
-                                            .fill(Color(red: 0.15, green: 0.27, blue: 0.6))
-                                    )
-                                    .fixedSize(horizontal: true, vertical: false)
-                                }
-                                
-                                Spacer()
-                            }
-                        }
-                    }
-                    .padding()
-                }
+                SheetPicker(
+                    title: "Select plan type:",
+                    options: planOptions,
+                    selectedOption: $selectedPlan,
+                    displayString: { $0.name }
+                )
+                .padding()
             }
             
             Spacer()
@@ -187,13 +167,9 @@ struct ContentView: View {
     }
 }
 
-// Helper for Optional binding
-extension Binding {
-    func unwrapped<T>() -> Binding<T> where Value == T? {
-        Binding<T>(
-            get: { self.wrappedValue! },
-            set: { self.wrappedValue = $0 }
-        )
+// Preview
+struct ContentView_Previews: PreviewProvider {
+    static var previews: some View {
+        ContentView()
     }
 }
-
