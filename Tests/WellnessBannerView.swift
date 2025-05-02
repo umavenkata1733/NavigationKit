@@ -102,32 +102,98 @@ struct OptionsSheetView<T: Identifiable & Hashable>: View {
 
 // Usage example
 struct ContentView: View {
-    @State private var selectedPlan: PlanOption
-    let planOptions: [PlanOption]
-    
-    init() {
-        let options = [
-            PlanOption(name: "Active 2025 Plan"),
-            PlanOption(name: "Premium 2025 Plan"),
-            PlanOption(name: "Basic 2025 Plan"),
-            PlanOption(name: "Family 2025 Plan"),
-            PlanOption(name: "Business 2025 Plan")
-        ]
-        self._selectedPlan = State(initialValue: options[0])
-        self.planOptions = options
-    }
+    @State private var selectedPlan: PlanOption?
+    @State private var planOptions: [PlanOption] = []
+    @State private var isLoading: Bool = false
     
     var body: some View {
         VStack {
-            SheetPicker(
-                title: "Select plan type:",
-                options: planOptions,
-                selectedOption: $selectedPlan,
-                displayString: { $0.name }
-            )
-            .padding()
+            if isLoading {
+                ProgressView()
+                    .padding()
+            } else {
+                if let selected = selectedPlan {
+                    SheetPicker(
+                        title: "Select plan type:",
+                        options: planOptions,
+                        selectedOption: $selectedPlan.unwrapped(),
+                        displayString: { $0.name }
+                    )
+                    .padding()
+                } else {
+                    // Show a placeholder when no data is loaded yet
+                    HStack {
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text("Select plan type:")
+                                .foregroundColor(.secondary)
+                            
+                            HStack {
+                                Button(action: {
+                                    fetchPlans()
+                                }) {
+                                    HStack {
+                                        Text("Select a plan")
+                                            .foregroundColor(.white)
+                                            .padding(.leading, 16)
+                                        
+                                        Image(systemName: "chevron.down")
+                                            .foregroundColor(.white)
+                                            .padding(.trailing, 16)
+                                    }
+                                    .padding(.vertical, 12)
+                                    .background(
+                                        RoundedRectangle(cornerRadius: 20)
+                                            .fill(Color(red: 0.15, green: 0.27, blue: 0.6))
+                                    )
+                                    .fixedSize(horizontal: true, vertical: false)
+                                }
+                                
+                                Spacer()
+                            }
+                        }
+                    }
+                    .padding()
+                }
+            }
             
             Spacer()
         }
+        .onAppear {
+            fetchPlans()
+        }
+    }
+    
+    func fetchPlans() {
+        isLoading = true
+        
+        // Simulate network request with a delay
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
+            // This would be your actual API call in a real app
+            let options = [
+                PlanOption(name: "Active 2025 Plan"),
+                PlanOption(name: "Premium 2025 Plan"),
+                PlanOption(name: "Basic 2025 Plan"),
+                PlanOption(name: "Family 2025 Plan"),
+                PlanOption(name: "Business 2025 Plan")
+            ]
+            
+            self.planOptions = options
+            if !options.isEmpty {
+                self.selectedPlan = options.first
+            }
+            
+            self.isLoading = false
+        }
     }
 }
+
+// Helper for Optional binding
+extension Binding {
+    func unwrapped<T>() -> Binding<T> where Value == T? {
+        Binding<T>(
+            get: { self.wrappedValue! },
+            set: { self.wrappedValue = $0 }
+        )
+    }
+}
+
